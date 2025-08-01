@@ -1,0 +1,32 @@
+package com.kyas.wolkandhold.database;
+
+import android.content.Context;
+
+import androidx.room.Database;
+import androidx.room.Room;
+import androidx.room.RoomDatabase;
+
+import com.kyas.wolkandhold.database.dao.RouteDao;
+import com.kyas.wolkandhold.database.dao.RoutePointDao;
+import com.kyas.wolkandhold.database.entities.Route;
+import com.kyas.wolkandhold.database.entities.RoutePoint;
+
+@Database(entities = {Route.class, RoutePoint.class}, version = 1)
+public abstract class AppDatabase extends RoomDatabase {
+    private static volatile AppDatabase INSTANCE;
+    public abstract RouteDao getRouteDao();
+    public abstract RoutePointDao getRoutePointDao();
+    public static AppDatabase getInstance(Context context) {
+        if (INSTANCE == null) {
+            synchronized (AppDatabase.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = Room.databaseBuilder(context.getApplicationContext(),
+                                    AppDatabase.class, "notes_db")
+                            .fallbackToDestructiveMigration()
+                            .build();
+                }
+            }
+        }
+        return INSTANCE;
+    }
+}

@@ -1,82 +1,53 @@
 package com.kyas.wolkandhold;
 
+import android.Manifest;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import com.yandex.mapkit.geometry.Point;
+import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.IBinder;
+import android.util.Log;
 
 import androidx.annotation.Nullable;
-
-import com.yandex.mapkit.Animation;
-import com.yandex.mapkit.geometry.Point;
-import com.yandex.mapkit.geometry.Polyline;
-import com.yandex.mapkit.map.CameraPosition;
-import com.yandex.mapkit.map.PlacemarkMapObject;
-import com.yandex.mapkit.map.PolylineMapObject;
-import com.yandex.runtime.image.ImageProvider;
-
-import java.security.Provider;
-import java.util.List;
+import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 public class LocationRecordService extends Service {
 
-
-    private boolean isRecording = false;
     private LocationListener locationListener;
     private LocationManager locationManager;
-    private List<Point> recordedPoints;
-    private PolylineMapObject recordingPolyline;
 
     @Override
     public void onCreate() {
         super.onCreate();
-//        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-//
-//        locationListener = location -> {
-//            double latitude = location.getLatitude();
-//            double longitude = location.getLongitude();
-//            Point p = new Point(latitude, longitude);
-//            recordedPoints.add(p);
-//            if (recordingPolyline != null)
-//                recordingPolyline.setGeometry(new Polyline(recordedPoints));
-//            mapView.getMapWindow().getMap().move(
-//                    new CameraPosition(p, 16f, 0, 10),
-//                    new Animation(Animation.Type.SMOOTH, 1),
-//                    null
-//            );
-//        };
-//
-//        if (isRecording) {
-//            btnStartRecording.setImageResource(R.drawable.ic_play);
-//            locationManager.removeUpdates(locationListener);
-//            PlacemarkMapObject mark = mapView.getMapWindow().getMap().getMapObjects().addPlacemark();
-//            mark.setGeometry(recordedPoints.getLast());
-//            mark.setIcon(ImageProvider.fromResource(this, R.drawable.ic_pin));
-//            isRecording = false;
-//        } else {
-//            btnStartRecording.setImageResource(R.drawable.ic_stop);
-//            getLastLocation();
-//            PlacemarkMapObject mark = mapView.getMapWindow().getMap().getMapObjects().addPlacemark();
-//            mark.setGeometry(new Point(lat, lon));
-//            mark.setIcon(ImageProvider.fromResource(this, R.drawable.ic_pin));
-//            if (checkPermissions()) {
-//                recordedPoints.clear();
-//                recordingPolyline = mapView.getMapWindow().getMap().getMapObjects().addPolyline();
-//                locationManager.requestLocationUpdates(
-//                        LocationManager.GPS_PROVIDER,
-//                        1000,
-//                        1,
-//                        locationListener
-//                );
-//                isRecording = true;
-//            }
-//        }
+        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        locationListener = this::sendLocationUpdate;
+        Log.d("LocationService", "onCreate: startingForeground");
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            Log.e("LocationService", "Нет разрешений на GPS");
+            return;
+        }
+        locationManager.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                1000,
+                1,
+                locationListener
+        );
+        startForeground(1, createNotification());
     }
 
     @Override
     public void onDestroy() {
+        locationManager.removeUpdates(locationListener);
         super.onDestroy();
     }
 
@@ -84,5 +55,27 @@ public class LocationRecordService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+    private Notification createNotification() {
+        NotificationChannel channel = new NotificationChannel(
+                "location_channel",
+                "GPS Tracking",
+                NotificationManager.IMPORTANCE_LOW
+        );
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        manager.createNotificationChannel(channel);
+        Log.d("LocationService", "createNotification: creating");
+        return new NotificationCompat.Builder(this, "location_channel")
+                .setContentTitle("Запись маршрута")
+                .setContentText("Идёт отслеживание GPS")
+                .setSmallIcon(R.drawable.ic_pin)
+                .build();
+    }
+
+    private void sendLocationUpdate(Location location) {
+        Intent intent = new Intent("LOCATION_UPDATE");
+        Log.d("LocationService", "Broadcast sent: " + location.getLatitude() + ", " + location.getLongitude());
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+        BufferedRoute.add(new Point(location.getLatitude(), location.getLongitude()));
     }
 }

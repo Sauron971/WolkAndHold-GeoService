@@ -8,7 +8,7 @@ android {
 
     defaultConfig {
         applicationId = "com.kyas.wolkandhold"
-        minSdk = 24
+        minSdk = 30
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -42,4 +42,11 @@ dependencies {
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
     implementation("com.yandex.android:maps.mobile:4.5.0-lite")
+
+    implementation("androidx.lifecycle:lifecycle-viewmodel:2.8.0")
+    implementation("androidx.lifecycle:lifecycle-livedata:2.8.0")
+    implementation("androidx.lifecycle:lifecycle-runtime:2.8.0")
+
+    implementation("androidx.room:room-runtime:2.6.1")
+    annotationProcessor("androidx.room:room-compiler:2.6.1")
 }

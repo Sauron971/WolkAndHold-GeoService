@@ -2,8 +2,10 @@ package com.kyas.wolkandhold;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.PointF;
@@ -20,9 +22,12 @@ import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
@@ -49,7 +54,6 @@ import com.yandex.mapkit.user_location.UserLocationObjectListener;
 import com.yandex.mapkit.user_location.UserLocationView;
 import com.yandex.runtime.image.ImageProvider;
 
-import java.util.LinkedList;
 import java.util.List;
 
 public class MapActivity extends AppCompatActivity implements UserLocationObjectListener {
@@ -63,9 +67,16 @@ public class MapActivity extends AppCompatActivity implements UserLocationObject
     private FloatingActionButton btnStartRecording;
     private boolean isRecording = false;
     private LocationListener locationListener;
-    private LocationManager locationManager;
+    private RouteViewModel routeViewModel;
     private PolylineMapObject recordingPolyline;
     private List<Point> recordedPoints;
+    private final BroadcastReceiver locationReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Log.d("BROADCAST_RECEIVER", "onReceive: new Point");
+            routeViewModel.updatePoints();
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -99,38 +110,31 @@ public class MapActivity extends AppCompatActivity implements UserLocationObject
         getLastLocation();
         mapView = findViewById(R.id.mapview);
         btnStartRecording = findViewById(R.id.btn_start_recording);
-        recordedPoints = new LinkedList<>();
 
         UserLocationLayer ull = MapKitFactory.getInstance().createUserLocationLayer(mapView.getMapWindow());
         ull.setObjectListener(this);
         ull.setVisible(true);
         ull.setHeadingEnabled(true);
 
-
-
-        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-
-        locationListener = location -> {
-            double latitude = location.getLatitude();
-            double longitude = location.getLongitude();
-            Point p = new Point(latitude, longitude);
-            recordedPoints.add(p);
-            if (recordingPolyline != null)
-                recordingPolyline.setGeometry(new Polyline(recordedPoints));
-            mapView.getMapWindow().getMap().move(
-                    new CameraPosition(p, 16f, 0, 10),
-                    new Animation(Animation.Type.SMOOTH, 1),
-                    null
-            );
-        };
+        routeViewModel = new ViewModelProvider(this).get(RouteViewModel.class);
+        routeViewModel.points.observe(this, updatedPoints -> {
+            if (recordingPolyline != null) {
+                recordingPolyline.setGeometry(new Polyline(updatedPoints));
+                mapView.getMapWindow().getMap().move(
+                        new CameraPosition(updatedPoints.get(updatedPoints.size()-1), 16f, 0, 10),
+                        new Animation(Animation.Type.SMOOTH, 1),
+                        null
+                );
+            }
+        });
 
         btnStartRecording.setOnClickListener(v -> {
             if (isRecording) {
                 // Остановить запись
                 btnStartRecording.setImageResource(R.drawable.ic_play);
-                locationManager.removeUpdates(locationListener);
+                getLastLocation();
                 PlacemarkMapObject mark = mapView.getMapWindow().getMap().getMapObjects().addPlacemark();
-                mark.setGeometry(recordedPoints.getLast());
+                mark.setGeometry(new Point(lat, lon));
                 mark.setIcon(ImageProvider.fromResource(this, R.drawable.ic_pin));
                 isRecording = false;
             } else {
@@ -141,14 +145,10 @@ public class MapActivity extends AppCompatActivity implements UserLocationObject
                 mark.setGeometry(new Point(lat, lon));
                 mark.setIcon(ImageProvider.fromResource(this, R.drawable.ic_pin));
                 if (checkPermissions()) {
-                    recordedPoints.clear();
                     recordingPolyline = mapView.getMapWindow().getMap().getMapObjects().addPolyline();
-                    locationManager.requestLocationUpdates(
-                            LocationManager.GPS_PROVIDER,
-                            1000,
-                            1,
-                            locationListener
-                    );
+
+                    Intent service = new Intent(this, LocationRecordService.class);
+                    ContextCompat.startForegroundService(this, service);
                     isRecording = true;
                 }
             }
@@ -159,6 +159,7 @@ public class MapActivity extends AppCompatActivity implements UserLocationObject
     protected void onStop() {
         mapView.onStop();
         MapKitFactory.getInstance().onStop();
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(locationReceiver);
         super.onStop();
     }
 
@@ -167,8 +168,15 @@ public class MapActivity extends AppCompatActivity implements UserLocationObject
         super.onStart();
         mapView.onStart();
         MapKitFactory.getInstance().onStart();
+        IntentFilter filter = new IntentFilter("LOCATION_UPDATE");
+        LocalBroadcastManager.getInstance(this).registerReceiver(locationReceiver, filter);
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+    }
 
     @SuppressLint("MissingPermission")
     private void getLastLocation() {
