@@ -14,10 +14,10 @@ public interface RoutePointDao {
     void insert(RoutePoint point);
     @Insert
     void insertAll(List<RoutePoint> pointList);
-    @Query("SELECT * FROM RoutePoint WHERE routeId = :routeId")
+    @Query("SELECT * FROM route_points WHERE routeId = :routeId")
     List<RoutePoint> getPointsForRoute(long routeId);
 
-    @Query("SELECT * FROM RoutePoint ")
+    @Query("SELECT * FROM route_points ")
     List<RoutePoint> getAllPointsRoute();
 
 }

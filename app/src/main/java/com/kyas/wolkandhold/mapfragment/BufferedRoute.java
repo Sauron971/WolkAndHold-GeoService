@@ -10,12 +10,19 @@ import java.util.List;
 
 public class BufferedRoute {
     private static final List<Point> points = new LinkedList<>();
+
+
     public static void add(Point point) {
         points.add(point);
     }
+
+//    private boolean isPointValid(Point newPoint) {
+//        if ()
+//    }
     public static List<Point> getAll() {
         return new LinkedList<>(points);
     }
+
     public static double getDistance() {
         float[] distance = new float[1];
         double result = 0.0;
@@ -27,6 +34,7 @@ public class BufferedRoute {
         }
         return result;
     }
+
     public static void clear() {
         points.clear();
     }

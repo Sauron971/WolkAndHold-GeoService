@@ -3,7 +3,7 @@ package com.kyas.wolkandhold.database.entities;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
-@Entity
+@Entity(tableName = "polygons")
 public class Polygon {
     @PrimaryKey
     public long userId;

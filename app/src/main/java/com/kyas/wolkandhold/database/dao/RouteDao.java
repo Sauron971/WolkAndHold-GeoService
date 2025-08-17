@@ -17,6 +17,6 @@ public interface RouteDao {
 
     @Delete
     void delete(Route route);
-    @Query("SELECT * FROM Route")
+    @Query("SELECT * FROM routes")
     LiveData<List<Route>> getAllRoutes();
 }

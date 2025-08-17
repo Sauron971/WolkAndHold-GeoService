@@ -45,7 +45,7 @@ public class RecyclerRoutesAdapter extends RecyclerView.Adapter<RecyclerRoutesAd
         holder.routeTitle.setText(route.name);
         DateFormat format = SimpleDateFormat.getDateInstance();
         holder.routeDate.setText(format.format(new Date(route.createdAt)));
-        holder.routeDistance.setText(String.format(Locale.getDefault(), "%.4f м", route.distance));
+        holder.routeDistance.setText(String.format(Locale.getDefault(), "%.2f м", route.distance));
 
         if (route.showMenu) {
             holder.routeContent.animate().translationX(-dpToPx(holder.routeContent.getContext(), 82)).start();

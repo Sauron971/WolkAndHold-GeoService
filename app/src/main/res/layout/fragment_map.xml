@@ -29,7 +29,9 @@
         android:layout_height="wrap_content"
         android:text="@string/start_record"
         android:layout_marginBottom="88dp"
-        android:icon="@drawable/ic_play"
+        android:layout_marginStart="@dimen/fab_margin"
+        android:layout_marginEnd="@dimen/fab_margin"
+        app:icon="@drawable/ic_play"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 

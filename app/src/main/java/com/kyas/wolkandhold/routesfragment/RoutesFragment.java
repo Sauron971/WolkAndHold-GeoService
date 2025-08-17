@@ -16,6 +16,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.TextView;
 
 import com.kyas.wolkandhold.MainActivity;
 import com.kyas.wolkandhold.R;
@@ -39,6 +40,7 @@ import java.util.concurrent.Executors;
 public class RoutesFragment extends Fragment {
 
     private RecyclerView recyclerViewRoutes;
+    private TextView textViewEmptyRoutes;
     private Activity activity;
     private Executor executor;
 
@@ -60,6 +62,7 @@ public class RoutesFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         recyclerViewRoutes = view.findViewById(R.id.routes_recycler);
+        textViewEmptyRoutes = view.findViewById(R.id.text_empty_routes);
         executor = Executors.newSingleThreadExecutor();
         RecyclerRoutesAdapter adapterRecycler = getRecyclerRoutesAdapter();
         recyclerViewRoutes.setAdapter(adapterRecycler);
@@ -67,7 +70,14 @@ public class RoutesFragment extends Fragment {
         helper.attachToRecyclerView(recyclerViewRoutes);
 
         RouteViewModel routeViewModel = new ViewModelProvider(this).get(RouteViewModel.class);
-        routeViewModel.getRoutes().observe(getViewLifecycleOwner(), adapterRecycler::setRoutes);
+        routeViewModel.getRoutes().observe(getViewLifecycleOwner(), (routes) -> {
+            if (routes.isEmpty()) {
+                textViewEmptyRoutes.setVisibility(View.VISIBLE);
+            } else {
+                textViewEmptyRoutes.setVisibility(View.GONE);
+            }
+            adapterRecycler.setRoutes(routes);
+        });
 
     }
 
@@ -91,9 +101,8 @@ public class RoutesFragment extends Fragment {
                 executor.execute(() -> {
                     RouteDao dao = AppDatabase.getInstance(activity.getApplication()).getRouteDao();
                     dao.delete(route);
-                    Log.d("TAG", "onDeleteButtonClick: deleting");
+                    Log.d("DeleteRoute", "deleting " + route.name);
                 });
-                Log.d("TAG", "onDeleteButtonClick: deleting2");
             }
         };
         return new RecyclerRoutesAdapter(activity, onRouteClickListener);

@@ -7,7 +7,8 @@ import androidx.room.ForeignKey;
 import androidx.room.PrimaryKey;
 
 
-@Entity(foreignKeys = @ForeignKey(
+@Entity(tableName = "route_points",
+        foreignKeys = @ForeignKey(
         entity = Route.class,
         parentColumns = "id",
         childColumns = "routeId",
