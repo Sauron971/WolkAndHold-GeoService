@@ -106,6 +106,7 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
 
     public MapFragment() {
         // Required empty public constructor
+
     }
 
     @Override
