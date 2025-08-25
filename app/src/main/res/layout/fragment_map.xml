@@ -6,7 +6,7 @@
     android:id="@+id/map_fragment_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".mapfragment.MapFragment">
+    tools:context=".ui.mapfragment.MapFragment">
 
     <com.yandex.mapkit.mapview.MapView
         android:id="@+id/mapview"

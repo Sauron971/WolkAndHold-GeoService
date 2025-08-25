@@ -7,6 +7,8 @@
     <string name="dialog_message_short_route">Ваш маршрут слишком короткий. Хотите остановить запись без сохранения?</string>
     <string name="dialog_message_big_difference_route">Первая точка слишком далеко от последней (макс 100 м). Такой маршрут невозможно сохранить. Хотите остановить запись без сохранения?</string>
 
+    <string name="location_is_disabled">Пожалуйста включить вашу геолокацию</string>
+
     <string name="next">Next</string>
     <string name="previous">Previous</string>
 

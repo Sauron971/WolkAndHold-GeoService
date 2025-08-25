@@ -1,0 +1,99 @@
+package com.kyas.wolkandhold.data;
+
+import android.app.Application;
+
+import androidx.annotation.NonNull;
+import androidx.lifecycle.AndroidViewModel;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
+import androidx.lifecycle.Transformations;
+
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import com.kyas.wolkandhold.data.database.entities.Polygon;
+import com.kyas.wolkandhold.data.database.entities.Route;
+import com.kyas.wolkandhold.ui.mapfragment.PolygonUiModel;
+import com.yandex.mapkit.geometry.Point;
+
+import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.List;
+
+public class RouteViewModel extends AndroidViewModel {
+
+    private final DataRepository repo = DataRepository.getInstance(getApplication());
+
+    public RouteViewModel(@NonNull Application application) {
+        super(application);
+    }
+
+
+    public MutableLiveData<Point> getLocation() {
+        return repo.getLocation();
+    }
+    public void requestLocation() {
+        repo.getLastLocation();
+    }
+    private List<Point> parsePoints(String jsonPoints) {
+        Gson gson = new Gson();
+        Type pointListType = new TypeToken<List<Point>>(){}.getType();
+        return gson.fromJson(jsonPoints, pointListType);
+    }
+
+    public LiveData<List<Route>> getRoutes() {
+        return repo.getRoutes();
+    }
+
+    // CHANGE: Прокси-методы для обновления/удаления
+    public void renameRoute(Route route, String newName) {
+        repo.renameRoute(route, newName);
+    }
+    public void deleteRoute(long routeId) {
+        repo.deleteRoute(routeId);
+    }
+
+    public LiveData<List<PolygonUiModel>> getPolygons() {
+        LiveData<List<PolygonUiModel>> polygonsUi = Transformations.map(repo.getPolygons(), entities -> {
+            List<PolygonUiModel> result = new ArrayList<>();
+            for (Polygon e : entities) {
+                PolygonUiModel ui = new PolygonUiModel();
+                ui.id = String.valueOf(e.id);
+                ui.ownerLabel = e.ownerName != null ? "Владелец: " + e.ownerName : "Аноним";
+                ui.points = parsePoints(e.pointsJson);
+                ui.area = e.area;
+                result.add(ui);
+            }
+            return result;
+        });
+        return polygonsUi;
+    }
+
+    public void loadPolygonsFromApi() {
+        repo.loadPolygons();
+    }
+    public void connectWebSocket() {
+        repo.connectWebSocket();
+    }
+
+    public LiveData<List<Point>> getPoints() {
+        return repo.getPoints();
+    }
+    public void clearPoints() {
+        repo.clearPoints();
+    }
+    public double distanceFirstToLast() {
+        return repo.distanceFirstToLast();
+    }
+
+    public void saveRoute(String routeName) {
+        repo.saveRoute(routeName);
+    }
+    public LiveData<Boolean> getPolygonSaved() {
+        return repo.getPolygonSaved();
+    }
+
+    public void uploadPolygon(Polygon polygon) {
+        repo.sendUpsertPolygonRequest(polygon);
+    }
+
+}

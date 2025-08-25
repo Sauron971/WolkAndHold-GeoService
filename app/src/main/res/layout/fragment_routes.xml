@@ -5,7 +5,7 @@
     android:id="@+id/routes_fragment_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".routesfragment.RoutesFragment">
+    tools:context=".ui.routesfragment.RoutesFragment">
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/routes_recycler"

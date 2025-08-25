@@ -5,11 +5,11 @@
     app:startDestination="@id/mapFragment">
     <fragment
         android:id="@+id/mapFragment"
-        android:name="com.kyas.wolkandhold.mapfragment.MapFragment"
+        android:name="com.kyas.wolkandhold.ui.mapfragment.MapFragment"
         android:label="Map"/>
     <fragment
         android:id="@+id/routesFragment"
-        android:name="com.kyas.wolkandhold.routesfragment.RoutesFragment"
+        android:name="com.kyas.wolkandhold.ui.routesfragment.RoutesFragment"
         android:label="Routes"/>
 
 
