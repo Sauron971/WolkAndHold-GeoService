@@ -35,6 +35,7 @@ import com.kyas.wolkandhold.data.database.dao.RouteDao;
 import com.kyas.wolkandhold.data.database.dao.RoutePointDao;
 import com.kyas.wolkandhold.data.database.entities.Polygon;
 import com.kyas.wolkandhold.data.database.entities.Route;
+import com.kyas.wolkandhold.data.Constants;
 import com.yandex.mapkit.geometry.Point;
 
 import java.lang.reflect.Type;
@@ -55,6 +56,8 @@ import ua.naiksoftware.stomp.StompClient;
 import ua.naiksoftware.stomp.dto.StompHeader;
 
 public class DataRepository {
+
+
     private static volatile DataRepository INSTANCE;
     private final MutableLiveData<List<Point>> points = new MutableLiveData<>(new ArrayList<>());
     private final MutableLiveData<List<Polygon>> polygons = new MutableLiveData<>();
@@ -140,14 +143,17 @@ public class DataRepository {
             RouteDao rd = db.getRouteDao();
             RoutePointDao rpd = db.getRoutePointDao();
             PolygonDao pd = db.getPolygonDao();
-            //сохраняем маршрут и его точки в базу данных
+            // Сохраняем маршрут и его точки в базу данных
             RouteRepository routeRep = new RouteRepository(rd, rpd);
-            routeRep.addNewRoute(routeName, getDistance(points), -1);
+            // Используем LOCAL_USER_ID для обозначения собственных маршрутов пользователя
+            routeRep.addNewRoute(routeName, getDistance(points), Constants.LOCAL_USER_ID);
             routeRep.addPointsToRoute(points);
-            // Обновляем или создаем новую территорию для этого юзера
-            List<Polygon> polys = pd.getPolygonsByUser(-1);
+            
+            // Обновляем или создаем новую территорию для локального пользователя
+            // LOCAL_USER_ID означает, что это собственный полигон пользователя
+            List<Polygon> polys = pd.getPolygonsByUser(Constants.LOCAL_USER_ID);
             Polygon dbPoly = polys.isEmpty() ? new Polygon() : polys.get(0).copyPolygon();
-            dbPoly.userId = -1;
+            dbPoly.userId = Constants.LOCAL_USER_ID;
             dbPoly.lastUpdated = System.currentTimeMillis();
             Gson gson = new Gson();
             dbPoly.pointsJson = gson.toJson(points);
@@ -234,7 +240,7 @@ public class DataRepository {
     public void loadPolygons() {
         apiService.getPolygonsInRadius(
                 location.getValue().getLatitude(),
-                location.getValue().getLongitude(), 100).enqueue(new Callback<>() {
+                location.getValue().getLongitude(), Constants.DEFAULT_SEARCH_RADIUS_METERS).enqueue(new Callback<>() {
             @Override
             public void onResponse(@NonNull Call<List<PolygonResponse>> call, @NonNull Response<List<PolygonResponse>> response) {
                 if (response.isSuccessful()) {
@@ -299,13 +305,19 @@ public class DataRepository {
                             stompClient.topic("/user/queue/polygons")
                                     .subscribe(msg -> {
                                         Log.d("WS", "Got: " + msg.getPayload());
+                                        Gson gson = new Gson();
+                                        PolygonResponse response = gson.fromJson(msg.getPayload(), PolygonResponse.class);
+                                        executor.execute(() -> {
+                                            PolygonDao dao = db.getPolygonDao();
+                                            dao.upsert(response.toEntity());
+                                        });
                                     }, err -> {
                                         Log.e("WS", "Topic error", err);
                                     });
 
-                            String body = String.format(Locale.getDefault(), "{\"lat\":%f,\"lon\":%f,\"radius\":100}",
-                                    location.getValue().getLatitude(),
-                                    location.getValue().getLongitude());
+                            String body = String.format(Locale.getDefault(), "{\"lat\":%f,\"lon\":%f,\"radius\":%d}",
+                location.getValue().getLatitude(),
+                location.getValue().getLongitude(), Constants.DEFAULT_SEARCH_RADIUS_METERS);
                             stompClient.send("/app/subscribe", body)
                                     .subscribe(() -> Log.d("WS", "Send OK"),
                                             err -> Log.e("WS", "Send error", err));

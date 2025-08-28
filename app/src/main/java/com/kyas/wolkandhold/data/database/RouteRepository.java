@@ -4,6 +4,7 @@ import com.kyas.wolkandhold.data.database.dao.RouteDao;
 import com.kyas.wolkandhold.data.database.dao.RoutePointDao;
 import com.kyas.wolkandhold.data.database.entities.Route;
 import com.kyas.wolkandhold.data.database.entities.RoutePoint;
+import com.kyas.wolkandhold.data.Constants;
 import com.yandex.mapkit.geometry.Point;
 
 import java.util.ArrayList;
@@ -12,7 +13,8 @@ import java.util.List;
 public class RouteRepository {
     private final RouteDao routeDao;
     private final RoutePointDao pointDao;
-    public long currentRouteId = -1;
+    // ID текущего активного маршрута, INVALID_ROUTE_ID означает отсутствие активного маршрута
+    public long currentRouteId = Constants.INVALID_ROUTE_ID;
 
     public RouteRepository(RouteDao routeDao, RoutePointDao pointDao) {
 
@@ -29,7 +31,8 @@ public class RouteRepository {
         currentRouteId = routeDao.insert(r);
     }
     public void addPointsToRoute(List<Point> pointList) {
-        if (currentRouteId == -1)
+        // Проверяем, что у нас есть активный маршрут
+        if (currentRouteId == Constants.INVALID_ROUTE_ID)
             return;
         List<RoutePoint> points = new ArrayList<>();
         pointList.forEach(p -> {

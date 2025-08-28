@@ -12,6 +12,13 @@ import android.graphics.PointF;
 import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.PowerManager;
+import android.provider.Settings;
+import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -21,19 +28,12 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 
-import android.os.PowerManager;
-import android.provider.Settings;
-import android.util.Log;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.Toast;
-
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
-import com.kyas.wolkandhold.utils.DialogFactory;
 import com.kyas.wolkandhold.R;
+import com.kyas.wolkandhold.data.Constants;
 import com.kyas.wolkandhold.data.RouteViewModel;
+import com.kyas.wolkandhold.utils.DialogFactory;
 import com.yandex.mapkit.Animation;
 import com.yandex.mapkit.MapKitFactory;
 import com.yandex.mapkit.geometry.LinearRing;
@@ -116,7 +116,6 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         });
         routeViewModel.getPoints().observe(getViewLifecycleOwner(), updatedPoints -> {
             // Обновление линии записи для отображения на карте
-            Log.d("fdsfsdf", "onViewCreated: алеее ебана");
             if (recordingPolyline != null) {
                 recordingPolyline.setGeometry(new Polyline(updatedPoints));
                 if (updatedPoints.isEmpty()) {
@@ -176,7 +175,8 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
                 }
                 double distance = routeViewModel.distanceFirstToLast();
 
-                if (distance > 100){
+                // Проверяем, что расстояние между первой и последней точкой не превышает допустимый радиус
+                if (distance > Constants.DEFAULT_CLOSING_RADIUS_METERS){
                     DialogFactory.showConfirmDialog(activity, R.string.dialog_title_save_route, R.string.dialog_message_big_difference_route, () -> {
                         stopRecordingWithoutSave(service);
                     });
