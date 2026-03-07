@@ -323,8 +323,8 @@ public class DataRepository {
                                     });
 
                             String body = String.format(Locale.getDefault(), "{\"lat\":%f,\"lon\":%f,\"radius\":%d}",
-                location.getValue().getLatitude(),
-                location.getValue().getLongitude(), Constants.DEFAULT_SEARCH_RADIUS_METERS);
+                                location.getValue().getLatitude(),
+                                location.getValue().getLongitude(), Constants.DEFAULT_SEARCH_RADIUS_METERS);
                             stompClient.send("/app/subscribe", body)
                                     .subscribe(() -> Log.d("WS", "Send OK"),
                                             err -> Log.e("WS", "Send error", err));

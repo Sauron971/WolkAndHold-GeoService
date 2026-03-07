@@ -145,62 +145,63 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
                 }
             }
         });
-        routeViewModel.getPolygons().observe(getViewLifecycleOwner(), (list) -> {
-            // Удаляем старые полигоны перед добавлением новых
-            polygonsMapObjects.forEach((id, polygonData) -> {
-                if (polygonData.obj.isValid()) {
-                    mapView.getMapWindow().getMap().getMapObjects().remove(polygonData.obj);
-                }
-            });
-            polygonsMapObjects.clear();
-            // Добавляем все полигоны заново
-            list.forEach(p -> {
-                renderPolygon(new Polygon(new LinearRing(p.points), new ArrayList<>()), p.ownerLabel, p.id);
-            });
-        });
+//        routeViewModel.getPolygons().observe(getViewLifecycleOwner(), (list) -> {
+//            // Удаляем старые полигоны перед добавлением новых
+//            polygonsMapObjects.forEach((id, polygonData) -> {
+//                if (polygonData.obj.isValid()) {
+//                    mapView.getMapWindow().getMap().getMapObjects().remove(polygonData.obj);
+//                }
+//            });
+//            polygonsMapObjects.clear();
+//            // Добавляем все полигоны заново
+//            list.forEach(p -> {
+//                renderPolygon(new Polygon(new LinearRing(p.points), new ArrayList<>()), p.ownerLabel, p.id);
+//            });
+//        });
 
-
-        routeViewModel.getPolygonSaved().observe(getViewLifecycleOwner(), success -> {
-            if (success != null) {
-                Toast.makeText(activity,
-                        success ? "Полигон сохранен успешно!" : "Ошибка при сохранении полигона в облако!",
-                        Toast.LENGTH_SHORT).show();
-            }
-        });
+//        routeViewModel.getPolygonSaved().observe(getViewLifecycleOwner(), success -> {
+//            if (success != null) {
+//                Toast.makeText(activity,
+//                        success ? "Полигон сохранен успешно!" : "Ошибка при сохранении полигона в облако!",
+//                        Toast.LENGTH_SHORT).show();
+//            }
+//        });
         routeViewModel.connectWebSocket();
 
         btnStartRecording.setOnClickListener(v -> {
             Intent service = new Intent(activity, LocationRecordService.class);
             if (isRecording) {
-                // Остановить запись
-                List<Point> points = routeViewModel.getPoints().getValue();
-                if (points.size() <= 3) {
-                    DialogFactory.showConfirmDialog(activity, R.string.dialog_title_save_route, R.string.dialog_message_short_route, () -> {
-                        stopRecordingWithoutSave(service);
-                    });
-                    Log.d("stopRecording", "too low points " + points.size());
-                    return;
-                }
-                double distance = routeViewModel.distanceFirstToLast();
-
-                // Проверяем, что расстояние между первой и последней точкой не превышает допустимый радиус
-                if (distance > Constants.DEFAULT_CLOSING_RADIUS_METERS){
-                    DialogFactory.showConfirmDialog(activity, R.string.dialog_title_save_route, R.string.dialog_message_big_difference_route, () -> {
-                        stopRecordingWithoutSave(service);
-                    });
-                    Log.d("stopRecording", "very much distance length " + distance + ", not saved!");
-                    return;
-                }
-
-                //если маршрут может быть соединен в круг останавливаем запись
-
-                DialogFactory.showSaveRouteDialog(activity,name -> {
-                    stopRecordingWithSave(service, name);
-                });
+//                // Остановить запись
+//                List<Point> points = routeViewModel.getPoints().getValue();
+//                if (points.size() <= 3) {
+//                    DialogFactory.showConfirmDialog(activity, R.string.dialog_title_save_route, R.string.dialog_message_short_route, () -> {
+//                        stopRecordingWithoutSave(service);
+//                    });
+//                    Log.d("stopRecording", "too low points " + points.size());
+//                    return;
+//                }
+//                double distance = routeViewModel.distanceFirstToLast();
+//
+//                // Проверяем, что расстояние между первой и последней точкой не превышает допустимый радиус
+//                if (distance > Constants.DEFAULT_CLOSING_RADIUS_METERS){
+//                    DialogFactory.showConfirmDialog(activity, R.string.dialog_title_save_route, R.string.dialog_message_big_difference_route, () -> {
+//                        stopRecordingWithoutSave(service);
+//                    });
+//                    Log.d("stopRecording", "very much distance length " + distance + ", not saved!");
+//                    return;
+//                }
+//
+//                //если маршрут может быть соединен в круг останавливаем запись
+//
+//                DialogFactory.showSaveRouteDialog(activity,name -> {
+//                    stopRecordingWithSave(service, name);
+//                });
             } else {
                 startRecording(service);
             }
         });
+
+
         btnStartRecording.setOnLongClickListener((v) -> {
             if (btnStartRecording.isExtended()) {
                 btnStartRecording.shrink();
@@ -218,6 +219,8 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
             }));
             return true;
         });
+
+
         btnCenterLocation.setOnClickListener((v) -> {
             tryGetLocation();
             routeViewModel.getLocation().observe(getViewLifecycleOwner(), new Observer<Point>() {
