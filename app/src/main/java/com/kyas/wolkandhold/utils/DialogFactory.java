@@ -29,6 +29,17 @@ public class DialogFactory {
                 .setPositiveButton("OK", null)
                 .show();
     }
+    public static void showDebugDialog(Context context, String title, String message, Consumer<String> onPositiveButton) {
+        EditText input = new EditText(context);
+        new AlertDialog.Builder(context)
+                .setTitle(title)
+                .setMessage(message)
+                .setView(input)
+                .setPositiveButton("Да", (d, w) -> onPositiveButton.accept(input.getText().toString()))
+                .setNegativeButton("Нет", null)
+                .show();
+
+    }
 
     public static void showConfirmDialog(Context context, int titleRes, int messageRes, Runnable onConfirm) {
         new AlertDialog.Builder(context)

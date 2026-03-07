@@ -88,6 +88,16 @@ public class RouteViewModel extends AndroidViewModel {
     public void saveRoute(String routeName) {
         repo.saveRoute(routeName);
     }
+
+    public void saveRoute(String routeName, List<Point> points) {
+        repo.saveRoute(routeName, points);
+    }
+    public void addPoint(double lat, double lon) {
+        repo.addPoint(new Point(
+                lat,
+                lon
+        ));
+    }
     public LiveData<Boolean> getPolygonSaved() {
         return repo.getPolygonSaved();
     }

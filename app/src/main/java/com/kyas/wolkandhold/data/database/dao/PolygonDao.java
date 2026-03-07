@@ -1,5 +1,6 @@
 package com.kyas.wolkandhold.data.database.dao;
 
+import androidx.lifecycle.LiveData;
 import androidx.room.Dao;
 import androidx.room.Insert;
 import androidx.room.Query;
@@ -31,6 +32,10 @@ public interface PolygonDao {
 
     @Query("Select * From polygons")
     List<Polygon> getAllPolygons();
+
+    @Query("Select * From polygons")
+    LiveData<List<Polygon>> getAllPolygonsLive();
+
 
     @Transaction
     default void upsert(Polygon newPolygon) {

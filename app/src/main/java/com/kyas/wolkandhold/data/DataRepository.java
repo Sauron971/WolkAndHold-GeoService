@@ -35,7 +35,6 @@ import com.kyas.wolkandhold.data.database.dao.RouteDao;
 import com.kyas.wolkandhold.data.database.dao.RoutePointDao;
 import com.kyas.wolkandhold.data.database.entities.Polygon;
 import com.kyas.wolkandhold.data.database.entities.Route;
-import com.kyas.wolkandhold.data.Constants;
 import com.yandex.mapkit.geometry.Point;
 
 import java.lang.reflect.Type;
@@ -60,7 +59,7 @@ public class DataRepository {
 
     private static volatile DataRepository INSTANCE;
     private final MutableLiveData<List<Point>> points = new MutableLiveData<>(new ArrayList<>());
-    private final MutableLiveData<List<Polygon>> polygons = new MutableLiveData<>();
+    private final LiveData<List<Polygon>> polygons;
     private final MutableLiveData<Boolean> polygonSaved = new MutableLiveData<>();
     private final MutableLiveData<List<Route>> routes = new MutableLiveData<>();
     private final MutableLiveData<Point> location = new MutableLiveData<>();
@@ -80,6 +79,7 @@ public class DataRepository {
             routes.postValue(db.getRouteDao().getAllRoutes());
         });
         set = context.getSharedPreferences("token", Context.MODE_PRIVATE);
+        polygons = db.getPolygonDao().getAllPolygonsLive();
         OkHttpClient client = new OkHttpClient.Builder()
                 .addInterceptor(new AuthInterceptor(set.getString("jwt", "token")))
                 .build();
@@ -95,7 +95,6 @@ public class DataRepository {
 
     public static DataRepository getInstance(Context context) {
         if (INSTANCE == null) {
-            // CHANGE: Лочимся на правильном классе DataRepository
             synchronized (DataRepository.class) {
                 if (INSTANCE == null) {
                     INSTANCE = new DataRepository(context.getApplicationContext());
@@ -140,40 +139,50 @@ public class DataRepository {
     public void saveRoute(String routeName) {
         executor.execute(() -> {
             List<Point> points = this.points.getValue();
-            RouteDao rd = db.getRouteDao();
-            RoutePointDao rpd = db.getRoutePointDao();
-            PolygonDao pd = db.getPolygonDao();
-            // Сохраняем маршрут и его точки в базу данных
-            RouteRepository routeRep = new RouteRepository(rd, rpd);
-            // Используем LOCAL_USER_ID для обозначения собственных маршрутов пользователя
-            routeRep.addNewRoute(routeName, getDistance(points), Constants.LOCAL_USER_ID);
-            routeRep.addPointsToRoute(points);
-            
-            // Обновляем или создаем новую территорию для локального пользователя
-            // LOCAL_USER_ID означает, что это собственный полигон пользователя
-            List<Polygon> polys = pd.getPolygonsByUser(Constants.LOCAL_USER_ID);
-            Polygon dbPoly = polys.isEmpty() ? new Polygon() : polys.get(0).copyPolygon();
-            dbPoly.userId = Constants.LOCAL_USER_ID;
-            dbPoly.lastUpdated = System.currentTimeMillis();
-            Gson gson = new Gson();
-            dbPoly.pointsJson = gson.toJson(points);
-            dbPoly.area = polygonAreaOnEarth(points);
-            if (polys.isEmpty()) {
-                pd.addPolygon(dbPoly);
-            } else {
-                if (dbPoly.area > polys.get(0).area) {
-                    pd.updatePolygon(dbPoly);
-                }
-            }
-            sendUpsertPolygonRequest(dbPoly);
-
-            Log.d("DialogSaveRoute", "saved new route with id:" + routeRep.currentRouteId);
-            // CHANGE: Обновляем список маршрутов
-            reloadRoutes();
+            saveRouteInternal(routeName, points);
         });
     }
 
-    // CHANGE: Переименование маршрута
+    public void saveRoute(String routeName, List<Point> points) {
+        executor.execute(() -> {
+            saveRouteInternal(routeName, points);
+        });
+    }
+
+    private void saveRouteInternal(String routeName, List<Point> points) {
+        RouteDao rd = db.getRouteDao();
+        RoutePointDao rpd = db.getRoutePointDao();
+        PolygonDao pd = db.getPolygonDao();
+        // Сохраняем маршрут и его точки в базу данных
+        RouteRepository routeRep = new RouteRepository(rd, rpd);
+        // Используем LOCAL_USER_ID для обозначения собственных маршрутов пользователя
+        routeRep.addNewRoute(routeName, getDistance(points), Constants.LOCAL_USER_ID);
+        routeRep.addPointsToRoute(points);
+        
+        // Обновляем или создаем новую территорию для локального пользователя
+        // LOCAL_USER_ID означает, что это собственный полигон пользователя
+        List<Polygon> polys = pd.getPolygonsByUser(Constants.LOCAL_USER_ID);
+        Polygon dbPoly;
+        if (polys.isEmpty()) {
+            dbPoly = new Polygon();
+            dbPoly.userId = Constants.LOCAL_USER_ID;
+            dbPoly.ownerName = "Мой полигон";
+        } else {
+            dbPoly = polys.get(0).copyPolygon();
+        }
+        dbPoly.userId = Constants.LOCAL_USER_ID;
+        dbPoly.lastUpdated = System.currentTimeMillis();
+        Gson gson = new Gson();
+        dbPoly.pointsJson = gson.toJson(points);
+        dbPoly.area = polygonAreaOnEarth(points);
+        // Используем upsert для автоматического обновления или создания
+        pd.upsert(dbPoly);
+        sendUpsertPolygonRequest(dbPoly);
+
+        Log.d("DialogSaveRoute", "saved new route with id:" + routeRep.currentRouteId);
+        reloadRoutes();
+    }
+
     public void renameRoute(Route route, String newName) {
         executor.execute(() -> {
             route.name = newName;
@@ -183,7 +192,6 @@ public class DataRepository {
         });
     }
 
-    // CHANGE: Удаление маршрута с каскадным удалением точек
     public void deleteRoute(long routeId) {
         executor.execute(() -> {
             RouteRepository rr = new RouteRepository(db.getRouteDao(), db.getRoutePointDao());
@@ -230,7 +238,7 @@ public class DataRepository {
         });
     }
 
-    public MutableLiveData<List<Polygon>> getPolygons() {
+    public LiveData<List<Polygon>> getPolygons() {
         return polygons;
     }
 
@@ -246,12 +254,11 @@ public class DataRepository {
                 if (response.isSuccessful()) {
                     List<PolygonResponse> responses = response.body();
                     if (responses != null) {
-                        List<Polygon> list = new ArrayList<>();
-                        responses.forEach((r) -> {
-                            list.add(r.toEntity());
-                        });
-                        polygons.postValue(list);
                         executor.execute(() -> {
+                            List<Polygon> list = new ArrayList<>();
+                            responses.forEach((r) -> {
+                                list.addAll(r.toEntities());
+                            });
                             PolygonDao dao = db.getPolygonDao();
                             list.forEach(dao::upsert);
                         });
@@ -309,7 +316,7 @@ public class DataRepository {
                                         PolygonResponse response = gson.fromJson(msg.getPayload(), PolygonResponse.class);
                                         executor.execute(() -> {
                                             PolygonDao dao = db.getPolygonDao();
-                                            dao.upsert(response.toEntity());
+                                            response.toEntities().forEach(dao::upsert);
                                         });
                                     }, err -> {
                                         Log.e("WS", "Topic error", err);

@@ -146,8 +146,16 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
             }
         });
         routeViewModel.getPolygons().observe(getViewLifecycleOwner(), (list) -> {
+            // Удаляем старые полигоны перед добавлением новых
+            polygonsMapObjects.forEach((id, polygonData) -> {
+                if (polygonData.obj.isValid()) {
+                    mapView.getMapWindow().getMap().getMapObjects().remove(polygonData.obj);
+                }
+            });
+            polygonsMapObjects.clear();
+            // Добавляем все полигоны заново
             list.forEach(p -> {
-                renderPolygon(new Polygon(new LinearRing(p.points), new ArrayList<>()), p.ownerLabel);
+                renderPolygon(new Polygon(new LinearRing(p.points), new ArrayList<>()), p.ownerLabel, p.id);
             });
         });
 
@@ -199,6 +207,15 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
             } else {
                 btnStartRecording.extend();
             }
+            DialogFactory.showDebugDialog(activity, "Сохранить", "Сохранить тестовый маршрут?", (s -> {
+                List<Point> testPoints = new ArrayList<>();
+                testPoints.add(new Point(56.169070, 40.486509));
+                testPoints.add(new Point(56.169736, 40.485361));
+                testPoints.add(new Point(56.170230, 40.486086));
+                testPoints.add(new Point(56.169506, 40.487235));
+                testPoints.add(new Point(56.169070, 40.486509));
+                routeViewModel.saveRoute(s, testPoints);
+            }));
             return true;
         });
         btnCenterLocation.setOnClickListener((v) -> {
@@ -225,6 +242,7 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
             });
             return true;
         });
+
 
     }
 
@@ -324,7 +342,7 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
 
     }
 
-    private void renderPolygon(Polygon polygon, String tapString) {
+    private void renderPolygon(Polygon polygon, String tapString, String id) {
         PolygonMapObject polygonMapObject = mapView.getMapWindow().getMap().getMapObjects().addPolygon(polygon);
         polygonMapObject.setFillColor(getRandomColor(0));
         MapObjectTapListener mapObjectTapListener = new MapObjectTapListener() {
@@ -335,7 +353,7 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
             }
         };
         polygonMapObject.addTapListener(mapObjectTapListener);
-        polygonsMapObjects.put((long) tapString.length(), new PolygonData(polygonMapObject, mapObjectTapListener));
+        polygonsMapObjects.put(Long.valueOf(id), new PolygonData(polygonMapObject, mapObjectTapListener));
     }
 
     private int getRandomColor(int alpha) {
