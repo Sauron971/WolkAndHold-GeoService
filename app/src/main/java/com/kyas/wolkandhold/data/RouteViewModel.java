@@ -10,8 +10,10 @@ import androidx.lifecycle.Transformations;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.kyas.wolkandhold.data.database.entities.PlayerEntity;
 import com.kyas.wolkandhold.data.database.entities.Polygon;
 import com.kyas.wolkandhold.data.database.entities.Route;
+import com.kyas.wolkandhold.ui.mapfragment.PlayerMarkUiModel;
 import com.kyas.wolkandhold.ui.mapfragment.PolygonUiModel;
 import com.yandex.mapkit.geometry.Point;
 
@@ -71,8 +73,23 @@ public class RouteViewModel extends AndroidViewModel {
     public void loadPolygonsFromApi() {
         repo.loadPolygons();
     }
-    public void connectWebSocket() {
-        repo.connectWebSocket();
+    public void connectWebSocket(String token) {
+        repo.startGameSession(token);
+    }
+
+    public LiveData<List<PlayerMarkUiModel>> getPlayersMarks() {
+        LiveData<List<PlayerMarkUiModel>> playersUi = Transformations.map(repo.getPlayers(), entities -> {
+            List<PlayerMarkUiModel> result = new ArrayList<>();
+            for (PlayerEntity e : entities) {
+                PlayerMarkUiModel ui = new PlayerMarkUiModel();
+                ui.id = e.playerId;
+                ui.playerName = e.playerName;
+                ui.point = new Point(e.lat, e.lon);
+                result.add(ui);
+            }
+            return result;
+        });
+        return playersUi;
     }
 
     public LiveData<List<Point>> getPoints() {

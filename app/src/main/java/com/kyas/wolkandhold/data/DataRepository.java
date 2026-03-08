@@ -25,6 +25,7 @@ import com.google.gson.reflect.TypeToken;
 import com.kyas.wolkandhold.BuildConfig;
 import com.kyas.wolkandhold.data.api.ApiService;
 import com.kyas.wolkandhold.data.api.AuthInterceptor;
+import com.kyas.wolkandhold.data.api.GameSocketManager;
 import com.kyas.wolkandhold.data.api.requests.PolygonRequest;
 import com.kyas.wolkandhold.data.api.requests.UserRequest;
 import com.kyas.wolkandhold.data.api.response.PolygonResponse;
@@ -33,6 +34,7 @@ import com.kyas.wolkandhold.data.database.RouteRepository;
 import com.kyas.wolkandhold.data.database.dao.PolygonDao;
 import com.kyas.wolkandhold.data.database.dao.RouteDao;
 import com.kyas.wolkandhold.data.database.dao.RoutePointDao;
+import com.kyas.wolkandhold.data.database.entities.PlayerEntity;
 import com.kyas.wolkandhold.data.database.entities.Polygon;
 import com.kyas.wolkandhold.data.database.entities.Route;
 import com.yandex.mapkit.geometry.Point;
@@ -40,7 +42,6 @@ import com.yandex.mapkit.geometry.Point;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -50,9 +51,6 @@ import retrofit2.Callback;
 import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
-import ua.naiksoftware.stomp.Stomp;
-import ua.naiksoftware.stomp.StompClient;
-import ua.naiksoftware.stomp.dto.StompHeader;
 
 public class DataRepository {
 
@@ -60,6 +58,7 @@ public class DataRepository {
     private static volatile DataRepository INSTANCE;
     private final MutableLiveData<List<Point>> points = new MutableLiveData<>(new ArrayList<>());
     private final LiveData<List<Polygon>> polygons;
+    private final LiveData<List<PlayerEntity>> players;
     private final MutableLiveData<Boolean> polygonSaved = new MutableLiveData<>();
     private final MutableLiveData<List<Route>> routes = new MutableLiveData<>();
     private final MutableLiveData<Point> location = new MutableLiveData<>();
@@ -70,7 +69,7 @@ public class DataRepository {
 
     private Retrofit retrofit;
     private final ApiService apiService;
-    private StompClient stompClient;
+    private final GameSocketManager socketManager;
 
 
     public DataRepository(Context context) {
@@ -80,9 +79,11 @@ public class DataRepository {
         });
         set = context.getSharedPreferences("token", Context.MODE_PRIVATE);
         polygons = db.getPolygonDao().getAllPolygonsLive();
+        players = db.getPlayerDao().getAllPlayersLive();
         OkHttpClient client = new OkHttpClient.Builder()
                 .addInterceptor(new AuthInterceptor(set.getString("jwt", "token")))
                 .build();
+        this.socketManager = new GameSocketManager();
 
         retrofit = new Retrofit.Builder()
                 .baseUrl(BuildConfig.API_URL)
@@ -91,6 +92,9 @@ public class DataRepository {
                 .build();
         apiService = retrofit.create(ApiService.class);
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(context);
+
+        setPolygonListener();
+        setPlayerListener();
     }
 
     public static DataRepository getInstance(Context context) {
@@ -245,6 +249,11 @@ public class DataRepository {
     public LiveData<Boolean> getPolygonSaved() {
         return polygonSaved;
     }
+
+    public LiveData<List<PlayerEntity>> getPlayers() {
+        return players;
+    }
+
     public void loadPolygons() {
         apiService.getPolygonsInRadius(
                 location.getValue().getLatitude(),
@@ -296,53 +305,30 @@ public class DataRepository {
         double earthRadius = 6378137;
         return Math.abs(total * earthRadius * earthRadius / 2.0);
     }
-    @SuppressLint("CheckResult")
-    public void connectWebSocket() {
-        stompClient = Stomp.over(
-                Stomp.ConnectionProvider.OKHTTP,
-                BuildConfig.WS_URL
-        );
+    public void startGameSession(String token) {
+        socketManager.connect(token);
+    }
 
-        stompClient.lifecycle()
-                .subscribe(lifecycleEvent -> {
-                    switch (lifecycleEvent.getType()) {
-                        case OPENED:
-                            Log.d("WS", "Stomp connection opened");
+    // Метод для отправки координат из GPS-сервиса
+    public void emitLocation(double lat, double lon) {
+        socketManager.sendLocation(lat, lon);
+    }
 
-                            stompClient.topic("/user/queue/polygons")
-                                    .subscribe(msg -> {
-                                        Log.d("WS", "Got: " + msg.getPayload());
-                                        Gson gson = new Gson();
-                                        PolygonResponse response = gson.fromJson(msg.getPayload(), PolygonResponse.class);
-                                        executor.execute(() -> {
-                                            PolygonDao dao = db.getPolygonDao();
-                                            response.toEntities().forEach(dao::upsert);
-                                        });
-                                    }, err -> {
-                                        Log.e("WS", "Topic error", err);
-                                    });
+    // Подписка на данные (можно через LiveData или колбэки)
+    public void setPolygonListener() {
+        socketManager.setPolygonListener(polys -> {
+            executor.execute(() -> {
+                db.getPolygonDao().insertAll(polys);
+            });
+        });
+    }
 
-                            String body = String.format(Locale.getDefault(), "{\"lat\":%f,\"lon\":%f,\"radius\":%d}",
-                                location.getValue().getLatitude(),
-                                location.getValue().getLongitude(), Constants.DEFAULT_SEARCH_RADIUS_METERS);
-                            stompClient.send("/app/subscribe", body)
-                                    .subscribe(() -> Log.d("WS", "Send OK"),
-                                            err -> Log.e("WS", "Send error", err));
-                            break;
-
-                        case ERROR:
-                            Log.e("WS", "Error", lifecycleEvent.getException());
-                            break;
-
-                        case CLOSED:
-                            Log.d("WS", "Connection closed");
-                            break;
-                    }
-                });
-        List<StompHeader> headers = new ArrayList<>();
-        headers.add(new StompHeader("Authorization", "Bearer " + set.getString("jwt", "null")));
-        Log.d("WS", headers.toString());
-        stompClient.connect(headers);
+    public void setPlayerListener() {
+        socketManager.setPlayerListener(player -> {
+            executor.execute(() -> {
+                db.getPlayerDao().upsertPlayer(player);
+            });
+        });
     }
 
     @SuppressLint("MissingPermission")

@@ -15,6 +15,8 @@ android {
     compileSdk = 36
     android.buildFeatures.buildConfig = true
 
+    flavorDimensions.add("env")
+
     defaultConfig {
         applicationId = "com.kyas.wolkandhold"
         minSdk = 30
@@ -23,22 +25,25 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField(
-            "String",
-            "YANDEX_API_KEY",
-            "\"${keystoreProperties["YANDEX_API_KEY"] ?: ""}\""
-        )
-        buildConfigField(
-            "String",
-            "API_URL",
-            "\"${keystoreProperties["API_URL"] ?: ""}\""
-        )
-        buildConfigField(
-            "String",
-            "WS_URL",
-            "\"${keystoreProperties["WS_URL"] ?: ""}\""
-        )
 
+        buildConfigField("String", "YANDEX_API_KEY", "\"${keystoreProperties["YANDEX_API_KEY"] ?: ""}\"")
+
+        buildConfigField("String", "API_URL", "\"${keystoreProperties["API_URL_DEV"] ?: ""}\"")
+        buildConfigField("String", "WS_URL", "\"${keystoreProperties["WS_URL_DEV"] ?: ""}\"")
+    }
+
+    productFlavors {
+        create("emu") {
+            dimension = "env"
+            buildConfigField("String", "API_URL", "\"${keystoreProperties["API_URL_DEV"] ?: ""}\"")
+            buildConfigField("String", "WS_URL", "\"${keystoreProperties["WS_URL_DEV"] ?: ""}\"")
+        }
+
+        create("physical") {
+            dimension = "env"
+            buildConfigField("String", "API_URL", "\"${keystoreProperties["API_URL"] ?: ""}\"")
+            buildConfigField("String", "WS_URL", "\"${keystoreProperties["WS_URL"] ?: ""}\"")
+        }
     }
 
     buildTypes {

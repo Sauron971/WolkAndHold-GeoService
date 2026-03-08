@@ -67,10 +67,7 @@ public class LocationRecordService extends LifecycleService {
                     boolean accurateEnough = loc.hasAccuracy() && loc.getAccuracy() <= 50.0f;
                     if (movedEnough && accurateEnough) {
                         lastLocation = loc;
-                        repo.addPoint(new Point(
-                                loc.getLatitude(),
-                                loc.getLongitude()
-                        ));
+                        repo.emitLocation(loc.getLatitude(), loc.getLongitude());
                         Log.d("TAG", "onLocationResult: New point added ");
                     }
                 }

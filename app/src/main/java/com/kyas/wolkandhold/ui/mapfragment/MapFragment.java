@@ -78,6 +78,7 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
     private PolylineMapObject recordingPolyline;
     private PlacemarkMapObject markStartRoute;
     private Map<Long, PolygonData> polygonsMapObjects;
+    private Map<Long, PlacemarkMapObject> playersMarkMapObjects;
 
 
 
@@ -94,6 +95,7 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         btnStartRecording = view.findViewById(R.id.fab_start_record);
         btnCenterLocation = view.findViewById(R.id.fab_center_location);
         polygonsMapObjects = new HashMap<>();
+        playersMarkMapObjects = new HashMap<>();
 
         UserLocationLayer ull = MapKitFactory.getInstance().createUserLocationLayer(mapView.getMapWindow());
         ull.setObjectListener(this);
@@ -145,19 +147,25 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
                 }
             }
         });
-//        routeViewModel.getPolygons().observe(getViewLifecycleOwner(), (list) -> {
-//            // Удаляем старые полигоны перед добавлением новых
-//            polygonsMapObjects.forEach((id, polygonData) -> {
-//                if (polygonData.obj.isValid()) {
-//                    mapView.getMapWindow().getMap().getMapObjects().remove(polygonData.obj);
-//                }
-//            });
-//            polygonsMapObjects.clear();
-//            // Добавляем все полигоны заново
-//            list.forEach(p -> {
-//                renderPolygon(new Polygon(new LinearRing(p.points), new ArrayList<>()), p.ownerLabel, p.id);
-//            });
-//        });
+        routeViewModel.getPolygons().observe(getViewLifecycleOwner(), (list) -> {
+            // Удаляем старые полигоны перед добавлением новых
+            polygonsMapObjects.forEach((id, polygonData) -> {
+                if (polygonData.obj.isValid()) {
+                    mapView.getMapWindow().getMap().getMapObjects().remove(polygonData.obj);
+                }
+            });
+            polygonsMapObjects.clear();
+            // Добавляем все полигоны заново
+            list.forEach(p -> {
+                renderPolygon(new Polygon(new LinearRing(p.points), new ArrayList<>()), p.ownerLabel, p.id);
+            });
+        });
+
+        routeViewModel.getPlayersMarks().observe(getViewLifecycleOwner(), (list) -> {
+            list.forEach((m) -> {
+                renderingMarkOfPlayer(m.id, m.playerName, m.point);
+            });
+        });
 
 //        routeViewModel.getPolygonSaved().observe(getViewLifecycleOwner(), success -> {
 //            if (success != null) {
@@ -166,36 +174,11 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
 //                        Toast.LENGTH_SHORT).show();
 //            }
 //        });
-        routeViewModel.connectWebSocket();
 
         btnStartRecording.setOnClickListener(v -> {
             Intent service = new Intent(activity, LocationRecordService.class);
             if (isRecording) {
-//                // Остановить запись
-//                List<Point> points = routeViewModel.getPoints().getValue();
-//                if (points.size() <= 3) {
-//                    DialogFactory.showConfirmDialog(activity, R.string.dialog_title_save_route, R.string.dialog_message_short_route, () -> {
-//                        stopRecordingWithoutSave(service);
-//                    });
-//                    Log.d("stopRecording", "too low points " + points.size());
-//                    return;
-//                }
-//                double distance = routeViewModel.distanceFirstToLast();
-//
-//                // Проверяем, что расстояние между первой и последней точкой не превышает допустимый радиус
-//                if (distance > Constants.DEFAULT_CLOSING_RADIUS_METERS){
-//                    DialogFactory.showConfirmDialog(activity, R.string.dialog_title_save_route, R.string.dialog_message_big_difference_route, () -> {
-//                        stopRecordingWithoutSave(service);
-//                    });
-//                    Log.d("stopRecording", "very much distance length " + distance + ", not saved!");
-//                    return;
-//                }
-//
-//                //если маршрут может быть соединен в круг останавливаем запись
-//
-//                DialogFactory.showSaveRouteDialog(activity,name -> {
-//                    stopRecordingWithSave(service, name);
-//                });
+
             } else {
                 startRecording(service);
             }
@@ -246,6 +229,7 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
             return true;
         });
 
+        routeViewModel.connectWebSocket(activity.getSharedPreferences("token", Context.MODE_PRIVATE).getString("jwt", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJTYXVyb24iLCJpYXQiOjE3NzI4OTU4NDQsImV4cCI6MTc3NTU3NDI0NH0.ulY6jfVW8_UqNYs7TzZXiqHrLOIo9dLL9Mdn_kPL-mo"));
 
     }
 
@@ -299,23 +283,23 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         // Начать запись
         btnStartRecording.setText(R.string.stop_record);
         btnStartRecording.setIconResource(R.drawable.ic_stop);
-        markStartRoute = mapView.getMapWindow().getMap().getMapObjects().addPlacemark();
+        //markStartRoute = mapView.getMapWindow().getMap().getMapObjects().addPlacemark();
         requestBatteryOptimizationIgnore();
         tryGetLocation();
         //когда координаты пользователя найдены запускаем сервис
         routeViewModel.getLocation().observe(getViewLifecycleOwner(), new Observer<Point>() {
             @Override
             public void onChanged(Point point) {
-                if (markStartRoute.isValid()) {
-                    markStartRoute.setGeometry(point);
-                    markStartRoute.setIcon(ImageProvider.fromResource(activity, R.drawable.ic_pin));
+                //if (markStartRoute.isValid()) {
+                    //markStartRoute.setGeometry(point);
+                    //markStartRoute.setIcon(ImageProvider.fromResource(activity, R.drawable.ic_pin));
                     if (checkPermissions()) {
                         recordingPolyline = mapView.getMapWindow().getMap().getMapObjects().addPolyline();
                         Log.d("TAG", "onChanged: Кнопку нажали");
                         ContextCompat.startForegroundService(activity, service);
                         isRecording = true;
                     }
-                }
+                //}
                 routeViewModel.getLocation().removeObserver(this);
             }
         });
@@ -357,6 +341,22 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         };
         polygonMapObject.addTapListener(mapObjectTapListener);
         polygonsMapObjects.put(Long.valueOf(id), new PolygonData(polygonMapObject, mapObjectTapListener));
+    }
+
+    private void renderingMarkOfPlayer(Long id, String playerName, Point point) {
+        if (!playersMarkMapObjects.containsKey(id)) {
+            PlacemarkMapObject mark = mapView.getMapWindow().getMap().getMapObjects().addPlacemark();
+            mark.setGeometry(point);
+            mark.setText(playerName);
+            mark.setIcon(ImageProvider.fromResource(activity, R.drawable.ic_pin));
+            playersMarkMapObjects.put(id, mark);
+        } else {
+            PlacemarkMapObject mark = playersMarkMapObjects.get(id);
+            if (mark != null) {
+                mark.setGeometry(point);
+            }
+        }
+
     }
 
     private int getRandomColor(int alpha) {

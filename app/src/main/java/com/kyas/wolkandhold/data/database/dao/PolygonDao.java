@@ -3,6 +3,7 @@ package com.kyas.wolkandhold.data.database.dao;
 import androidx.lifecycle.LiveData;
 import androidx.room.Dao;
 import androidx.room.Insert;
+import androidx.room.OnConflictStrategy;
 import androidx.room.Query;
 import androidx.room.Transaction;
 import androidx.room.Update;
@@ -17,6 +18,9 @@ public interface PolygonDao {
 
     @Insert
     long addPolygon(Polygon polygon);
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    void insertAll(List<Polygon> polygons);
 
     @Update
     int updatePolygon(Polygon polygon);
