@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
+import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.Polygon;
 
 @Data
@@ -26,8 +27,8 @@ public class PolygonEntity {
 
     @Getter
     @Setter
-    @Column(columnDefinition = "geography(Polygon, 4326)")
-    private Polygon area;
+    @Column(columnDefinition = "geometry(MULTIPOLYGON, 4326)")
+    private Geometry area;
 
     @Getter
     @Setter
@@ -43,6 +44,11 @@ public class PolygonEntity {
     @Setter
     @Column
     private long lastUpdated;
+
+	@Getter
+	@Setter
+	@Column
+	private String title;
 
 
     public PolygonEntity() {

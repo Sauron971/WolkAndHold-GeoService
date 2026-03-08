@@ -1,6 +1,5 @@
 package com.kyas.wolkandhold.security;
 
-import com.kyas.wolkandhold.controllers.AuthController;
 import com.kyas.wolkandhold.services.PostUserDetailsService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -13,7 +12,6 @@ import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -49,7 +47,6 @@ public class AuthChannelInterceptor implements ChannelInterceptor {
                 throw new IllegalArgumentException("Authorization header missing");
             }
         }
-
         return message;
     }
 }

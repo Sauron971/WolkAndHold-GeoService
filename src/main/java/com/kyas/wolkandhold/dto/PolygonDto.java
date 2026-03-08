@@ -27,6 +27,10 @@ public class PolygonDto {
     @Min(message = "Last update timestamp is required", value = 1)
     private long lastUpdated;
 
+    @Setter
+    @Getter
+    private String title;
+
     public PolygonDto() {
     }
 

@@ -34,13 +34,13 @@ public class PolygonWsController {
 
     private final GeometryFactory geometryFactory = new GeometryFactory();
 
-    @MessageMapping("/subscribe")
+    @MessageMapping("/subscribe/polygons")
     public void subscribe(Subscription sub, Principal principal, StompHeaderAccessor accessor) {
         CustomUserDetails ud = (CustomUserDetails) ((Authentication) principal).getPrincipal();
         String sessionId = accessor.getSessionId();
         sub.setUserId(ud.getId());
         subscriptions.put(sessionId, sub);
-        log.info("Getting subscribe {} | {}", sessionId, sub);
+        log.info("Get subscribe to PolygonWS {} | {}", sessionId, sub);
     }
 
     public void notifyPolygonUpdated(PolygonResponse polygon) throws JsonProcessingException {

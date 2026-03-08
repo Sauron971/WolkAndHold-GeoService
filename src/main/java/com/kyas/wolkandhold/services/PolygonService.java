@@ -77,18 +77,26 @@ public class PolygonService {
     @Transactional
     public PolygonEntity upsertPolygon(Long userId, PolygonDto dto) throws JsonProcessingException {
         Polygon jtsPolygon = fromPoints(dto.getPoints());
-
-        //Проверяем находится ли внутри
-        boolean isInside = !entityManager.createNativeQuery("""
-            SELECT id From polygons
-            WHERE user_id != :userId 
-                And ST_Within(:poly, area)""")
+        //Обновляем свои полигоны если они пересекаются
+        entityManager.createNativeQuery("""
+            UPDATE polygons
+            SET area = ST_Union(area, :poly)
+            WHERE user_id == :userId
+            AND ST_Intersects(area, :poly)""")
                 .setParameter("userId", userId)
                 .setParameter("poly", jtsPolygon)
                 .getResultList().isEmpty();
-        if (isInside) {
-            throw new RuntimeException("Polygon fully inside another territory");
-        }
+        //Проверяем находится ли внутри
+//        boolean isInside = !entityManager.createNativeQuery("""
+//            SELECT id From polygons
+//            WHERE user_id != :userId
+//                And ST_Within(:poly, area)""")
+//                .setParameter("userId", userId)
+//                .setParameter("poly", jtsPolygon)
+//                .getResultList().isEmpty();
+//        if (isInside) {
+//            throw new RuntimeException("Polygon fully inside another territory");
+//        }
         //обновляем чужие если пересекается
         entityManager.createNativeQuery("""
             UPDATE polygons

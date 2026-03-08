@@ -48,7 +48,8 @@ public class PolygonController {
                                     entity.getOwner().getUsername()),
                             entity.getSquare(),
                             entity.getLastUpdated(),
-                            wkt
+                            wkt,
+                            entity.getTitle()
                     );
                     return resp;
                 }).toList();
@@ -66,7 +67,8 @@ public class PolygonController {
                         entity.getOwner().getUsername()),
                 entity.getSquare(),
                 entity.getLastUpdated(),
-                wkt
+                wkt,
+                entity.getTitle()
         );
         log.info("Upserting polygon userId = {}, dto = {}", ud.getId(), polygonDto );
         return ResponseEntity.ok(resp);

@@ -14,6 +14,7 @@ public class PolygonResponse {
     private double square;
     private long lastUpdated;
     private String wkt;
+    private String title;
 
     public static PolygonResponse fromEntity(PolygonEntity entity) {
 
@@ -21,6 +22,7 @@ public class PolygonResponse {
                 new UserDto(entity.getOwner().getId(), entity.getOwner().getUsername()),
                 entity.getSquare(),
                 entity.getLastUpdated(),
-                entity.getArea().toString());
+                entity.getArea().toString(),
+                entity.getTitle());
     }
 }
