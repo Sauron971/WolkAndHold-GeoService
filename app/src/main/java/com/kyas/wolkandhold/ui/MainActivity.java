@@ -82,11 +82,6 @@ public class MainActivity extends AppCompatActivity {
                 return false;
             }
         });
-        SharedPreferences sett = getSharedPreferences("token", MODE_PRIVATE);
-        SharedPreferences.Editor editor = sett.edit();
-        editor.putString("jwt", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJTYXVyb24iLCJpYXQiOjE3NzI5NjAwMzAsImV4cCI6MTc3NTYzODQzMH0.mMMRRhDi9r5AdmQEGbGo5-GLG0zpefLYAlt4KeleJXU");
-        //editor.putString("jwt", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJLeWFzMTciLCJpYXQiOjE3NzI5NjEyMTQsImV4cCI6MTc3NTYzOTYxNH0.5gqBZCRZsbJ_HEJi4MfBX1z4-2QVXzq6iX7NNF5C29Y");
-        editor.apply();
     }
 
 

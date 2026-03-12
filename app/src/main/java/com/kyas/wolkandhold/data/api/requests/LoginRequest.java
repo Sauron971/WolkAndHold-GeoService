@@ -1,6 +1,11 @@
 package com.kyas.wolkandhold.data.api.requests;
 
 public class LoginRequest {
+    public LoginRequest(String username, String password) {
+        this.username = username;
+        this.password = password;
+    }
+
     private String username;
     private String password;
 
