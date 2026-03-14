@@ -10,7 +10,7 @@ import com.kyas.wolkandhold.BuildConfig;
 import com.kyas.wolkandhold.data.api.requests.LocationRequest;
 import com.kyas.wolkandhold.data.api.response.PolygonResponse;
 import com.kyas.wolkandhold.data.api.response.UserResponse;
-import com.kyas.wolkandhold.data.database.entities.PlayerEntity;
+import com.kyas.wolkandhold.data.models.PlayerModel;
 import com.kyas.wolkandhold.data.database.entities.Polygon;
 
 import java.util.ArrayList;
@@ -38,7 +38,7 @@ public class GameSocketManager {
     }
 
     public interface OnPlayerReceivedListener {
-        void onNewPlayer(PlayerEntity player);
+        void onNewPlayer(PlayerModel player);
     }
 
     private OnPlayerReceivedListener listenerPlayer;
@@ -93,12 +93,17 @@ public class GameSocketManager {
         Disposable topic = stompClient.topic("/topic/all_players")
                 .subscribe(msg -> {
                     UserResponse response = gson.fromJson(msg.getPayload(), UserResponse.class);
+                    Log.d("WS_PLAYER", "from server: userId=" + response.getUserId()
+                            + " lat=" + response.getLat()
+                            + " lon=" + response.getLon()
+                            + " isCapture=" + response.isCapture());
                     if (listenerPlayer != null) {
-                        listenerPlayer.onNewPlayer(new PlayerEntity(
+                        listenerPlayer.onNewPlayer(new PlayerModel(
                                 response.getUserId(),
                                 response.getUsername(),
                                 response.getLat(),
                                 response.getLon(),
+                                response.isCapture(),
                                 System.currentTimeMillis()));
                     }
                 }, err -> Log.e("WS", "Topic error", err));
@@ -106,10 +111,10 @@ public class GameSocketManager {
     }
 
     @SuppressLint("CheckResult")
-    public void sendLocation(double lat, double lon) {
+    public void sendLocation(double lat, double lon, boolean isCapture) {
         if (stompClient != null && stompClient.isConnected()) {
             // Создаем простой объект для отправки
-            LocationRequest request = new LocationRequest(lat, lon);
+            LocationRequest request = new LocationRequest(lat, lon, isCapture);
             String json = gson.toJson(request);
 
             stompClient.send("/app/move", json)

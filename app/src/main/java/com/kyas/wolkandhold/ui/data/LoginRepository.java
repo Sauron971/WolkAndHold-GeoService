@@ -37,9 +37,11 @@ public class LoginRepository {
 
     public boolean isLoggedIn() {
         String token = sharedPreferences.getString("token", "0");
-        if (!token.isEmpty() || token.equals("0")) {
+
+        if (token != null && !token.isEmpty() && !token.equals("0")) {
             return true;
         }
+
         return user != null;
     }
 

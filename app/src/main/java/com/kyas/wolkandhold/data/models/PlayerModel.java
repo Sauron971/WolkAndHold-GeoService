@@ -1,36 +1,33 @@
-package com.kyas.wolkandhold.data.database.entities;
+package com.kyas.wolkandhold.data.models;
 
-import androidx.annotation.NonNull;
-import androidx.room.Entity;
-import androidx.room.PrimaryKey;
 
-@Entity(tableName = "players")
-public class PlayerEntity {
+public class PlayerModel {
 
-    @PrimaryKey()
     public long playerId;
     public String playerName;
 
     public double lat;
     public double lon;
+    public boolean isCapture;
     public long lastUpdated;
 
-    public PlayerEntity(long playerId, String playerName, double lat, double lon, long lastUpdated) {
+    public PlayerModel(long playerId, String playerName, double lat, double lon, boolean isCapture, long lastUpdated) {
         this.playerId = playerId;
         this.playerName = playerName;
         this.lat = lat;
         this.lon = lon;
+        this.isCapture = isCapture;
         this.lastUpdated = lastUpdated;
     }
 
-    @NonNull
     @Override
     public String toString() {
-        return "PlayerEntity{" +
+        return "PlayerModel{" +
                 "playerId=" + playerId +
                 ", playerName='" + playerName + '\'' +
                 ", lat=" + lat +
                 ", lon=" + lon +
+                ", isCapture=" + isCapture +
                 ", lastUpdated=" + lastUpdated +
                 '}';
     }

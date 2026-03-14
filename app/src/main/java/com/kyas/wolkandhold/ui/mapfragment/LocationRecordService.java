@@ -28,27 +28,44 @@ import androidx.lifecycle.LifecycleService;
 
 public class LocationRecordService extends LifecycleService {
 
+    public static final String ACTION_START_IDLE = "ACTION_START_IDLE";
+    public static final String ACTION_START_CAPTURE = "ACTION_START_CAPTURE";
+    public static final String ACTION_STOP = "ACTION_STOP";
+
+    private boolean isCaptureMode = false;
     private FusedLocationProviderClient fusedClient;
     private LocationCallback locationCallback;
     private Location lastLocation;
-    // CHANGE: Repo инициализируем в onCreate, чтобы не обращаться к getApplication() при init поля
     private DataRepository repo;
 
 
     @Override
     public void onCreate() {
         super.onCreate();
-        // CHANGE: Безопасная инициализация репозитория
         repo = DataRepository.getInstance(getApplicationContext());
         fusedClient = LocationServices.getFusedLocationProviderClient(this);
-        startForeground(1, createNotification());
-        startLocationUpdates();
-        Log.d("TAG", "onLocationResult: service start ");
+        Log.d("LocService", "Service start");
     }
 
-    // CHANGE: Явно делаем сервис липким для устойчивой записи
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        super.onStartCommand(intent, flags, startId);
+        if (intent != null && intent.getAction() != null ) {
+            String action = intent.getAction();
+            switch (action) {
+                case ACTION_START_IDLE:
+                    startLocationUpdates();
+                    break;
+
+                case ACTION_START_CAPTURE:
+                    upgradeToForeground();
+                    break;
+                case ACTION_STOP:
+                    stopSelf();
+                    break;
+            }
+        }
+
         return START_STICKY;
     }
 
@@ -62,13 +79,12 @@ public class LocationRecordService extends LifecycleService {
             public void onLocationResult(@NonNull LocationResult result) {
                 Location loc = result.getLastLocation();
                 if (loc != null) {
-                    // CHANGE: Смягчили фильтр и добавили скобки для корректного приоритета
                     boolean movedEnough = lastLocation == null || loc.distanceTo(lastLocation) > 2.0f;
                     boolean accurateEnough = loc.hasAccuracy() && loc.getAccuracy() <= 50.0f;
                     if (movedEnough && accurateEnough) {
                         lastLocation = loc;
-                        repo.emitLocation(loc.getLatitude(), loc.getLongitude());
-                        Log.d("TAG", "onLocationResult: New point added ");
+                        repo.emitLocation(loc.getLatitude(), loc.getLongitude(), isCaptureMode);
+                        Log.d("LocService", "Point send");
                     }
                 }
             }
@@ -81,6 +97,13 @@ public class LocationRecordService extends LifecycleService {
         }
 
         fusedClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper());
+    }
+
+    private void upgradeToForeground() {
+        isCaptureMode = true;
+        Notification notification = createNotification();
+        startForeground(1, notification);
+        Log.d("LocService", "Service upgraded to foreground");
     }
 
     private Notification createNotification() {

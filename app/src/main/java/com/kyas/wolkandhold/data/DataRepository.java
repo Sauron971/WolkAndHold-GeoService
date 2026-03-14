@@ -34,14 +34,16 @@ import com.kyas.wolkandhold.data.database.RouteRepository;
 import com.kyas.wolkandhold.data.database.dao.PolygonDao;
 import com.kyas.wolkandhold.data.database.dao.RouteDao;
 import com.kyas.wolkandhold.data.database.dao.RoutePointDao;
-import com.kyas.wolkandhold.data.database.entities.PlayerEntity;
+import com.kyas.wolkandhold.data.models.PlayerModel;
 import com.kyas.wolkandhold.data.database.entities.Polygon;
 import com.kyas.wolkandhold.data.database.entities.Route;
 import com.yandex.mapkit.geometry.Point;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -58,7 +60,7 @@ public class DataRepository {
     private static volatile DataRepository INSTANCE;
     private final MutableLiveData<List<Point>> points = new MutableLiveData<>(new ArrayList<>());
     private final LiveData<List<Polygon>> polygons;
-    private final LiveData<List<PlayerEntity>> players;
+    private final MutableLiveData<Map<Long, PlayerModel>> players;
     private final MutableLiveData<Boolean> polygonSaved = new MutableLiveData<>();
     private final MutableLiveData<List<Route>> routes = new MutableLiveData<>();
     private final MutableLiveData<Point> location = new MutableLiveData<>();
@@ -79,7 +81,8 @@ public class DataRepository {
         });
         set = context.getSharedPreferences("token", Context.MODE_PRIVATE);
         polygons = db.getPolygonDao().getAllPolygonsLive();
-        players = db.getPlayerDao().getAllPlayersLive();
+        players = new MutableLiveData<>();
+        players.setValue(new HashMap<>());
         OkHttpClient client = new OkHttpClient.Builder()
                 .addInterceptor(new AuthInterceptor(set.getString("jwt", "token")))
                 .build();
@@ -250,7 +253,7 @@ public class DataRepository {
         return polygonSaved;
     }
 
-    public LiveData<List<PlayerEntity>> getPlayers() {
+    public MutableLiveData<Map<Long, PlayerModel>> getPlayers() {
         return players;
     }
 
@@ -310,8 +313,8 @@ public class DataRepository {
     }
 
     // Метод для отправки координат из GPS-сервиса
-    public void emitLocation(double lat, double lon) {
-        socketManager.sendLocation(lat, lon);
+    public void emitLocation(double lat, double lon, boolean isCapture) {
+        socketManager.sendLocation(lat, lon, isCapture);
     }
 
     // Подписка на данные (можно через LiveData или колбэки)
@@ -325,9 +328,11 @@ public class DataRepository {
 
     public void setPlayerListener() {
         socketManager.setPlayerListener(player -> {
-            executor.execute(() -> {
-                db.getPlayerDao().upsertPlayer(player);
-            });
+            Map<Long, PlayerModel> currentMap = players.getValue();
+            if (currentMap == null) currentMap = new HashMap<>();
+            Map<Long, PlayerModel> updatedMap = new HashMap<>(currentMap);
+            updatedMap.put(player.playerId, player);
+            players.postValue(updatedMap);
         });
     }
 
@@ -341,7 +346,6 @@ public class DataRepository {
                     requestNewLocationData();
                 } else {
                     location.postValue(new Point(loc.getLatitude(), loc.getLongitude()));
-                    // CHANGE: Исправлен лог: выводим широту и долготу
                     Log.d("GPS", "getLocation: " + loc.getLatitude() + " | " + loc.getLongitude());
 
                 }

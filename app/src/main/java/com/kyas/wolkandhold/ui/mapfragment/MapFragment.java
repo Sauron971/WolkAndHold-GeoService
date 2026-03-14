@@ -79,6 +79,7 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
     private PlacemarkMapObject markStartRoute;
     private Map<Long, PolygonData> polygonsMapObjects;
     private Map<Long, PlacemarkMapObject> playersMarkMapObjects;
+    private Map<Long, PolylineMapObject> playersPolylineMapObjects;
 
 
 
@@ -96,6 +97,7 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         btnCenterLocation = view.findViewById(R.id.fab_center_location);
         polygonsMapObjects = new HashMap<>();
         playersMarkMapObjects = new HashMap<>();
+        playersPolylineMapObjects = new HashMap<>();
 
         UserLocationLayer ull = MapKitFactory.getInstance().createUserLocationLayer(mapView.getMapWindow());
         ull.setObjectListener(this);
@@ -162,25 +164,22 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         });
 
         routeViewModel.getPlayersMarks().observe(getViewLifecycleOwner(), (list) -> {
+            //Обновление отображения точки и маршрута других игроков
             list.forEach((m) -> {
                 renderingMarkOfPlayer(m.id, m.playerName, m.point);
+                Log.d("RenderPlayers", "Is captured: " + m.isCapture);
+                if(m.isCapture) {
+                    renderingPolylineOfPlayer(m.id, m.point);
+                }
             });
         });
 
-//        routeViewModel.getPolygonSaved().observe(getViewLifecycleOwner(), success -> {
-//            if (success != null) {
-//                Toast.makeText(activity,
-//                        success ? "Полигон сохранен успешно!" : "Ошибка при сохранении полигона в облако!",
-//                        Toast.LENGTH_SHORT).show();
-//            }
-//        });
 
         btnStartRecording.setOnClickListener(v -> {
-            Intent service = new Intent(activity, LocationRecordService.class);
             if (isRecording) {
-
+                stopRecording();
             } else {
-                startRecording(service);
+                startRecording();
             }
         });
 
@@ -218,18 +217,8 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
             });
 
         });
-        // Временно для установки разных jwt токенов
-        btnCenterLocation.setOnLongClickListener((v) -> {
-            DialogFactory.showSaveRouteDialog(activity, (text) -> {
-                SharedPreferences set = activity.getSharedPreferences("token", Context.MODE_PRIVATE);
-                SharedPreferences.Editor edit = set.edit();
-                edit.putString("jwt", text);
-                edit.apply();
-            });
-            return true;
-        });
 
-        routeViewModel.connectWebSocket(activity.getSharedPreferences("token", Context.MODE_PRIVATE).getString("jwt", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJTYXVyb24iLCJpYXQiOjE3NzI4OTU4NDQsImV4cCI6MTc3NTU3NDI0NH0.ulY6jfVW8_UqNYs7TzZXiqHrLOIo9dLL9Mdn_kPL-mo"));
+        routeViewModel.connectWebSocket(getActivity().getApplicationContext().getSharedPreferences("app_prefs", Context.MODE_PRIVATE).getString("token", ""));
 
     }
 
@@ -256,6 +245,9 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
     public void onStart() {
         super.onStart();
         mapView.onStart();
+        Intent intent = new Intent(getContext(), LocationRecordService.class);
+        intent.setAction(LocationRecordService.ACTION_START_IDLE);
+        getContext().startService(intent);
     }
 
     @Override
@@ -278,7 +270,7 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
 
 
 
-    private void startRecording(Intent service) {
+    private void startRecording() {
 
         // Начать запись
         btnStartRecording.setText(R.string.stop_record);
@@ -295,8 +287,9 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
                     //markStartRoute.setIcon(ImageProvider.fromResource(activity, R.drawable.ic_pin));
                     if (checkPermissions()) {
                         recordingPolyline = mapView.getMapWindow().getMap().getMapObjects().addPolyline();
-                        Log.d("TAG", "onChanged: Кнопку нажали");
-                        ContextCompat.startForegroundService(activity, service);
+                        Intent intent = new Intent(getContext(), LocationRecordService.class);
+                        intent.setAction(LocationRecordService.ACTION_START_CAPTURE);
+                        getContext().startService(intent);
                         isRecording = true;
                     }
                 //}
@@ -317,14 +310,13 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         routeViewModel.clearPoints();
         isRecording = false;
     }
-    private void stopRecordingWithoutSave(Intent service) {
+    private void stopRecording() {
+        Intent intent = new Intent(getContext(), LocationRecordService.class);
+        intent.setAction(LocationRecordService.ACTION_STOP);
+        getContext().startService(intent);
         btnStartRecording.setIconResource(R.drawable.ic_play);
         btnStartRecording.setText(R.string.start_record);
-        activity.stopService(service);
-        mapView.getMapWindow().getMap().getMapObjects().remove(markStartRoute);
-        mapView.getMapWindow().getMap().getMapObjects().remove(recordingPolyline);
         recordingPolyline = null;
-        routeViewModel.clearPoints();
         isRecording = false;
 
     }
@@ -357,6 +349,24 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
             }
         }
 
+    }
+
+    private void renderingPolylineOfPlayer(Long id, Point point) {
+        if (!playersPolylineMapObjects.containsKey(id)) {
+            PolylineMapObject line = mapView.getMapWindow().getMap().getMapObjects().addPolyline();
+            Polyline geometry = new Polyline(List.of(point));
+            line.setGeometry(geometry);
+            line.setStrokeColor(getRandomColor(55));
+            playersPolylineMapObjects.put(id, line);
+            Log.d("RenderPolyline", "Added new polyline ");
+        } else {
+            PolylineMapObject line = playersPolylineMapObjects.get(id);
+            List<Point> points = new ArrayList<>(line.getGeometry().getPoints());
+            points.add(point);
+            Polyline geometry = new Polyline(points);
+            line.setGeometry(geometry);
+            Log.d("RenderPolyline", "Added new point to line  " + point);
+        }
     }
 
     private int getRandomColor(int alpha) {

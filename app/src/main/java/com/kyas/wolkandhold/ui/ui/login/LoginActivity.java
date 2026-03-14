@@ -47,14 +47,14 @@ public class LoginActivity extends AppCompatActivity {
         final Button loginButton = binding.login;
         final ProgressBar loadingProgressBar = binding.loading;
 
-        loadingProgressBar.setVisibility(View.GONE);
+        loadingProgressBar.setVisibility(View.VISIBLE);
         if (loginViewModel.alreadyHasToken()) {
 
             Intent mainAct = new Intent(this, MainActivity.class);
             startActivity(mainAct);
             finish();
         }
-        loadingProgressBar.setVisibility(View.VISIBLE);
+        loadingProgressBar.setVisibility(View.GONE);
 
         loginViewModel.getLoginFormState().observe(this, new Observer<LoginFormState>() {
             @Override

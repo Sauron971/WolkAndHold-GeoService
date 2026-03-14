@@ -10,7 +10,7 @@ import androidx.lifecycle.Transformations;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import com.kyas.wolkandhold.data.database.entities.PlayerEntity;
+import com.kyas.wolkandhold.data.models.PlayerModel;
 import com.kyas.wolkandhold.data.database.entities.Polygon;
 import com.kyas.wolkandhold.data.database.entities.Route;
 import com.kyas.wolkandhold.ui.mapfragment.PlayerMarkUiModel;
@@ -80,11 +80,13 @@ public class RouteViewModel extends AndroidViewModel {
     public LiveData<List<PlayerMarkUiModel>> getPlayersMarks() {
         LiveData<List<PlayerMarkUiModel>> playersUi = Transformations.map(repo.getPlayers(), entities -> {
             List<PlayerMarkUiModel> result = new ArrayList<>();
-            for (PlayerEntity e : entities) {
+            for (var entry : entities.entrySet()) {
+                PlayerModel e = entry.getValue();
                 PlayerMarkUiModel ui = new PlayerMarkUiModel();
                 ui.id = e.playerId;
                 ui.playerName = e.playerName;
                 ui.point = new Point(e.lat, e.lon);
+                ui.isCapture = e.isCapture;
                 result.add(ui);
             }
             return result;

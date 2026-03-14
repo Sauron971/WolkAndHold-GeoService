@@ -8,6 +8,15 @@ public class UserResponse {
     private double lat;
 
     private double lon;
+    private boolean isCapture;
+
+    public boolean isCapture() {
+        return isCapture;
+    }
+
+    public void setCapture(boolean capture) {
+        isCapture = capture;
+    }
 
     public double getLat() {
         return lat;
