@@ -25,7 +25,9 @@ import com.yandex.mapkit.MapKitFactory;
 
 public class MainActivity extends AppCompatActivity {
     private FragmentManager fm;
-    private Fragment[] activeFragment;
+    private Fragment mapFragment;
+    private Fragment routesFragment;
+    private Fragment active;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,40 +49,44 @@ public class MainActivity extends AppCompatActivity {
                     new String[]{Manifest.permission.POST_NOTIFICATIONS}, 101);
         }
         fm = getSupportFragmentManager();
-        Fragment mapFragment = new MapFragment();
-        Fragment routesFragment = new RoutesFragment();
-        activeFragment = new Fragment[]{mapFragment};
 
-        fm.beginTransaction()
-                .add(R.id.nav_host_fragment, routesFragment, "ROUTES")
-                .hide(routesFragment)
-                .commit();
+        if (savedInstanceState == null) {
+            mapFragment = new MapFragment();
+            routesFragment = new RoutesFragment();
 
-        fm.beginTransaction()
-                .add(R.id.nav_host_fragment, mapFragment, "MAP")
-                .commit();
+            fm.beginTransaction()
+                    .add(R.id.nav_host_fragment, routesFragment, "ROUTES").hide(routesFragment)
+                    .add(R.id.nav_host_fragment, mapFragment, "MAP")
+                    .commit();
+            active = mapFragment;
+        } else {
+            // ПОВТОРНЫЙ ЗАПУСК: Ищем уже существующие фрагменты по тегам
+            mapFragment = fm.findFragmentByTag("MAP");
+            routesFragment = fm.findFragmentByTag("ROUTES");
 
-        bottomNavigationView.setOnItemSelectedListener(new NavigationBarView.OnItemSelectedListener() {
-            @Override
-            public boolean onNavigationItemSelected(@NonNull MenuItem menuItem) {
-                int menuId = menuItem.getItemId();
-                if (menuId == R.id.mapFragment) {
-                    fm.beginTransaction()
-                            .hide(activeFragment[0])
-                            .show(mapFragment)
-                            .commit();
-                    activeFragment[0] = mapFragment;
-                    return true;
-                } else if (menuId == R.id.routesFragment) {
-                    fm.beginTransaction()
-                            .hide(activeFragment[0])
-                            .show(routesFragment)
-                            .commit();
-                    activeFragment[0] = routesFragment;
-                    return true;
-                }
-                return false;
+            // Пытаемся понять, какой из них был активным до пересоздания
+            // Если карта не скрыта, значит она активна
+            if (mapFragment.isHidden()) {
+                active = routesFragment;
+            } else {
+                active = mapFragment;
             }
+        }
+
+        bottomNavigationView.setOnItemSelectedListener(item -> {
+            int menuId = item.getItemId();
+            if (menuId == R.id.mapFragment) {
+                if (active == mapFragment) return true; // Уже тут
+                fm.beginTransaction().hide(active).show(mapFragment).commit();
+                active = mapFragment;
+                return true;
+            } else if (menuId == R.id.routesFragment) {
+                if (active == routesFragment) return true; // Уже тут
+                fm.beginTransaction().hide(active).show(routesFragment).commit();
+                active = routesFragment;
+                return true;
+            }
+            return false;
         });
     }
 

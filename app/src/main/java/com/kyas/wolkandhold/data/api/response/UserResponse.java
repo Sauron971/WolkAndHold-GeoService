@@ -1,7 +1,7 @@
 package com.kyas.wolkandhold.data.api.response;
 
 public class UserResponse {
-    private long userId;
+    private long id;
 
     private String username;
 
@@ -35,11 +35,11 @@ public class UserResponse {
     }
 
     public long getUserId() {
-        return userId;
+        return id;
     }
 
     public void setUserId(long userId) {
-        this.userId = userId;
+        this.id = userId;
     }
 
     public String getUsername() {

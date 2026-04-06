@@ -29,6 +29,7 @@ import com.kyas.wolkandhold.data.api.GameSocketManager;
 import com.kyas.wolkandhold.data.api.requests.PolygonRequest;
 import com.kyas.wolkandhold.data.api.requests.UserRequest;
 import com.kyas.wolkandhold.data.api.response.PolygonResponse;
+import com.kyas.wolkandhold.data.api.response.TailResponse;
 import com.kyas.wolkandhold.data.database.AppDatabase;
 import com.kyas.wolkandhold.data.database.RouteRepository;
 import com.kyas.wolkandhold.data.database.dao.PolygonDao;
@@ -40,9 +41,11 @@ import com.kyas.wolkandhold.data.database.entities.Route;
 import com.yandex.mapkit.geometry.Point;
 
 import java.lang.reflect.Type;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -53,6 +56,8 @@ import retrofit2.Callback;
 import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
+import ua.naiksoftware.stomp.Stomp;
+import ua.naiksoftware.stomp.StompClient;
 
 public class DataRepository {
 
@@ -61,9 +66,10 @@ public class DataRepository {
     private final MutableLiveData<List<Point>> points = new MutableLiveData<>(new ArrayList<>());
     private final LiveData<List<Polygon>> polygons;
     private final MutableLiveData<Map<Long, PlayerModel>> players;
-    private final MutableLiveData<Boolean> polygonSaved = new MutableLiveData<>();
+    private final MutableLiveData<PolygonResponse> polygonSaved = new MutableLiveData<>();
     private final MutableLiveData<List<Route>> routes = new MutableLiveData<>();
     private final MutableLiveData<Point> location = new MutableLiveData<>();
+    private final MutableLiveData<TailResponse> croppedTail = new MutableLiveData<>();
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final FusedLocationProviderClient mFusedLocationClient;
     private final SharedPreferences set;
@@ -79,12 +85,12 @@ public class DataRepository {
         executor.execute(() -> {
             routes.postValue(db.getRouteDao().getAllRoutes());
         });
-        set = context.getSharedPreferences("token", Context.MODE_PRIVATE);
+        set = context.getApplicationContext().getSharedPreferences("app_prefs", Context.MODE_PRIVATE);
         polygons = db.getPolygonDao().getAllPolygonsLive();
         players = new MutableLiveData<>();
         players.setValue(new HashMap<>());
         OkHttpClient client = new OkHttpClient.Builder()
-                .addInterceptor(new AuthInterceptor(set.getString("jwt", "token")))
+                .addInterceptor(new AuthInterceptor(set))
                 .build();
         this.socketManager = new GameSocketManager();
 
@@ -95,9 +101,9 @@ public class DataRepository {
                 .build();
         apiService = retrofit.create(ApiService.class);
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(context);
-
         setPolygonListener();
         setPlayerListener();
+        setTailListener();
     }
 
     public static DataRepository getInstance(Context context) {
@@ -114,20 +120,42 @@ public class DataRepository {
     public LiveData<List<Point>> getPoints() {
         return points;
     }
-    public double distanceFirstToLast() {
-        //Расчет дистации для замыкания круга
-        double x1lat = points.getValue().get(0).getLatitude();
-        double y1lon = points.getValue().get(0).getLongitude();
-        double x2lat = points.getValue().get(points.getValue().size()-1).getLatitude();
-        double y2lon = points.getValue().get(points.getValue().size()-1).getLongitude();
+
+    //Расчет дистации для замыкания круга
+    public double distanceFirstToLast(List<Point> points) {
+        if (points.isEmpty())
+            return Double.MAX_VALUE;
+        double x1lat = points.get(0).getLatitude();
+        double y1lon = points.get(0).getLongitude();
+        double x2lat = points.get(points.size()-1).getLatitude();
+        double y2lon = points.get(points.size()-1).getLongitude();
         float[] distance = new float[1];
         Location.distanceBetween(x1lat, y1lon, x2lat, y2lon, distance);
         return distance[0];
     }
 
-    public void addPoint(Point point) {
-        List<Point> current = new ArrayList<>(points.getValue());
-        current.add(point);
+    public void addPoint(Point newPoint) {
+        // 1. Берём текущие точки и готовим новый список
+        List<Point> previous = new ArrayList<>(points.getValue());
+        List<Point> current  = new ArrayList<>(previous);
+        current.add(newPoint);
+        // 2. Считаем расстояние "до" и "после" по ОДНОМУ и тому же типу списка
+        double prevDist = distanceFirstToLast(previous);
+        double newDist  = distanceFirstToLast(current);
+        // 3. Считаем площадь по current
+        double area = polygonAreaOnEarth(current);
+        // 4. Проверяем переход через порог + минимальное количество вершин
+        boolean enoughPoints = current.size() >= 4;
+        boolean wasOpen   = prevDist > 10;
+        boolean nowClosed = newDist <= 10;
+
+        Log.d("PointsRepo", "Area=" + polygonAreaOnEarth(current));
+        if (enoughPoints
+                && wasOpen
+                && nowClosed
+                && area >= 30){
+            saveRoute(LocalDateTime.now().toString());
+        }
         points.postValue(current);
     }
     public void clearPoints() {
@@ -148,6 +176,7 @@ public class DataRepository {
             List<Point> points = this.points.getValue();
             saveRouteInternal(routeName, points);
         });
+        clearPoints();
     }
 
     public void saveRoute(String routeName, List<Point> points) {
@@ -166,25 +195,17 @@ public class DataRepository {
         routeRep.addNewRoute(routeName, getDistance(points), Constants.LOCAL_USER_ID);
         routeRep.addPointsToRoute(points);
         
-        // Обновляем или создаем новую территорию для локального пользователя
+        // Cоздаем новую территорию для локального пользователя
         // LOCAL_USER_ID означает, что это собственный полигон пользователя
-        List<Polygon> polys = pd.getPolygonsByUser(Constants.LOCAL_USER_ID);
-        Polygon dbPoly;
-        if (polys.isEmpty()) {
-            dbPoly = new Polygon();
-            dbPoly.userId = Constants.LOCAL_USER_ID;
-            dbPoly.ownerName = "Мой полигон";
-        } else {
-            dbPoly = polys.get(0).copyPolygon();
-        }
+        Polygon dbPoly = new Polygon();
         dbPoly.userId = Constants.LOCAL_USER_ID;
         dbPoly.lastUpdated = System.currentTimeMillis();
         Gson gson = new Gson();
         dbPoly.pointsJson = gson.toJson(points);
         dbPoly.area = polygonAreaOnEarth(points);
         // Используем upsert для автоматического обновления или создания
-        pd.upsert(dbPoly);
-        sendUpsertPolygonRequest(dbPoly);
+        //pd.insert(dbPoly); Все равно приходит с сервера наш же полигон когда он сохранен
+        sendPolygonRequest(dbPoly);
 
         Log.d("DialogSaveRoute", "saved new route with id:" + routeRep.currentRouteId);
         reloadRoutes();
@@ -223,24 +244,24 @@ public class DataRepository {
 
         return result;
     }
-    public void sendUpsertPolygonRequest(Polygon poly) {
+    public void sendPolygonRequest(Polygon poly) {
         Gson gson = new Gson();
         Type listType = new TypeToken<List<Point>>(){}.getType();
         List<Point> points = gson.fromJson(poly.pointsJson, listType);
-
-        apiService.upsertPolygon(new PolygonRequest(
+        PolygonRequest request = new PolygonRequest(
                 new UserRequest(poly.userId, poly.ownerName),
                 points,
                 poly.area,
-                poly.lastUpdated)).enqueue(new Callback<PolygonResponse>() {
+                poly.lastUpdated);
+        Log.d("Polygon", "sendPolygonRequest: " + gson.toJson(request));
+        apiService.insertPolygon(request).enqueue(new Callback<PolygonResponse>() {
             @Override
             public void onResponse(@NonNull Call<PolygonResponse> call, @NonNull Response<PolygonResponse> response) {
-                polygonSaved.postValue(response.isSuccessful());
+                polygonSaved.postValue(response.body());
             }
 
             @Override
             public void onFailure(@NonNull Call<PolygonResponse> call, @NonNull Throwable t) {
-                polygonSaved.postValue(false);
             }
         });
     }
@@ -249,7 +270,7 @@ public class DataRepository {
         return polygons;
     }
 
-    public LiveData<Boolean> getPolygonSaved() {
+    public LiveData<PolygonResponse> getPolygonSaved() {
         return polygonSaved;
     }
 
@@ -257,6 +278,11 @@ public class DataRepository {
         return players;
     }
 
+    public MutableLiveData<TailResponse> getCroppedTail() {
+        return croppedTail;
+    }
+
+    @SuppressLint("CheckResult")
     public void loadPolygons() {
         apiService.getPolygonsInRadius(
                 location.getValue().getLatitude(),
@@ -273,6 +299,8 @@ public class DataRepository {
                             });
                             PolygonDao dao = db.getPolygonDao();
                             list.forEach(dao::upsert);
+
+
                         });
                     }
                 } else {
@@ -286,7 +314,10 @@ public class DataRepository {
                 Log.d("API", "Failure response get polygons " + t.getLocalizedMessage());
             }
         });
+
     }
+
+    //Метод для высчитывания площади в м2 произвольного многоугольника на поверхности земли
     private double polygonAreaOnEarth(List<Point> coords) {
         if (coords.size() < 3) return 0;
 
@@ -312,16 +343,41 @@ public class DataRepository {
         socketManager.connect(token);
     }
 
+
     // Метод для отправки координат из GPS-сервиса
     public void emitLocation(double lat, double lon, boolean isCapture) {
         socketManager.sendLocation(lat, lon, isCapture);
+        socketManager.updatePolygonSubscription(lat, lon);
     }
 
-    // Подписка на данные (можно через LiveData или колбэки)
     public void setPolygonListener() {
         socketManager.setPolygonListener(polys -> {
             executor.execute(() -> {
                 db.getPolygonDao().insertAll(polys);
+                boolean pointContains = false;
+                int index = -1;
+                List<Point> currentPoints = points.getValue();
+                if (!polys.isEmpty()) {
+                    for (int i = 0; i < polys.size(); i++) {
+                        if (polygonSaved.getValue() == null || polys.get(i).id != polygonSaved.getValue().getId()) {
+                            for (int i1 = 0; i1 < currentPoints.size(); i1++) {
+                                if (pointIsInside(currentPoints.get(i1), polys.get(i).getPoints())) {
+                                    pointContains = true;
+                                    index = i1;
+                                    break;
+                                }
+                            }
+                            if (pointContains)
+                                break;
+                        }
+                    }
+                }
+                if (pointContains && index != -1) {
+                    socketManager.sendRequestCutTail(currentPoints.subList(index, currentPoints.size()));
+                    points.postValue(currentPoints.subList(index, currentPoints.size()));
+                } else {
+                    clearPoints();
+                }
             });
         });
     }
@@ -334,6 +390,9 @@ public class DataRepository {
             updatedMap.put(player.playerId, player);
             players.postValue(updatedMap);
         });
+    }
+    public void setTailListener() {
+        socketManager.setPlayerTailListener(croppedTail::postValue);
     }
 
     @SuppressLint("MissingPermission")
@@ -378,6 +437,24 @@ public class DataRepository {
             ));
         }
     };
+    public static boolean pointIsInside (Point target, List<Point> polygon) {
+        boolean result = false;
+        int n = polygon.size();
+
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+            Point p1 = polygon.get(i);
+            Point p2 = polygon.get(j);
+
+            if ((p1.getLatitude() > target.getLatitude()) != (p2.getLatitude() > target.getLatitude())) {
+                double intersectLon = (p2.getLongitude() - p1.getLongitude()) * (target.getLatitude() - p1.getLatitude()) / (p2.getLatitude() - p1.getLatitude()) + p1.getLongitude();
+
+                if (target.getLongitude() < intersectLon) {
+                    result = !result;
+                }
+            }
+        }
+        return result;
+    }
 
     public MutableLiveData<Point> getLocation() {
         return location;

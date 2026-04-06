@@ -22,12 +22,16 @@ public class Constants {
     /**
      * Стандартный радиус поиска полигонов в метрах
      */
-    public static final int DEFAULT_SEARCH_RADIUS_METERS = 100;
+    public static final int DEFAULT_SEARCH_RADIUS_METERS = 10000;
     public static final int DEFAULT_CLOSING_RADIUS_METERS = 100;
 
     /**
      * Максимальное количество точек в маршруте
      */
     public static final int MAX_ROUTE_POINTS = 10000;
+    /**
+     * Прозрачность полилинии для отрисовки других игроков
+     */
+    public static final int ALPHA_COLOR_OF_POLYLINE = 85;
 }
 

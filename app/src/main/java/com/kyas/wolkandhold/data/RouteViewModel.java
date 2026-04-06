@@ -10,6 +10,8 @@ import androidx.lifecycle.Transformations;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.kyas.wolkandhold.data.api.response.PolygonResponse;
+import com.kyas.wolkandhold.data.api.response.TailResponse;
 import com.kyas.wolkandhold.data.models.PlayerModel;
 import com.kyas.wolkandhold.data.database.entities.Polygon;
 import com.kyas.wolkandhold.data.database.entities.Route;
@@ -93,15 +95,17 @@ public class RouteViewModel extends AndroidViewModel {
         });
         return playersUi;
     }
-
+    public LiveData<TailResponse> getCroppedTail() {
+        return repo.getCroppedTail();
+    }
     public LiveData<List<Point>> getPoints() {
         return repo.getPoints();
     }
     public void clearPoints() {
         repo.clearPoints();
     }
-    public double distanceFirstToLast() {
-        return repo.distanceFirstToLast();
+    public double distanceFirstToLast(List<Point> points) {
+        return repo.distanceFirstToLast(points);
     }
 
     public void saveRoute(String routeName) {
@@ -117,12 +121,12 @@ public class RouteViewModel extends AndroidViewModel {
                 lon
         ));
     }
-    public LiveData<Boolean> getPolygonSaved() {
+    public LiveData<PolygonResponse> getPolygonSaved() {
         return repo.getPolygonSaved();
     }
 
     public void uploadPolygon(Polygon polygon) {
-        repo.sendUpsertPolygonRequest(polygon);
+        repo.sendPolygonRequest(polygon);
     }
 
 }

@@ -1,11 +1,14 @@
 package com.kyas.wolkandhold.ui.data;
 
+import android.content.SharedPreferences;
 import android.util.Log;
 
 import com.kyas.wolkandhold.BuildConfig;
 import com.kyas.wolkandhold.data.api.ApiService;
+import com.kyas.wolkandhold.data.api.AuthInterceptor;
 import com.kyas.wolkandhold.data.api.requests.LoginRequest;
 import com.kyas.wolkandhold.data.api.response.AuthResponse;
+import com.kyas.wolkandhold.data.api.response.ValidateTokenResponse;
 import com.kyas.wolkandhold.ui.data.model.LoggedInUser;
 
 import java.io.IOException;
@@ -39,23 +42,48 @@ public class LoginDataSource {
     public Result<LoggedInUser> login(String username, String password) {
 
         try {
-            Log.d("LOGINLOGIN", "login: trying logged in");
+            Log.d("AUTH", "login: trying logged in");
             Response<AuthResponse> resp = apiService.login(new LoginRequest(username, password)).execute();
-            Log.d("LOGINLOGIN", "login: " + resp.isSuccessful());
-            Log.d("LOGINLOGIN", "login1: " + resp.body());
             if (resp.isSuccessful() && resp.body() != null) {
-                LoggedInUser fakeUser =
+                LoggedInUser user =
                         new LoggedInUser(
                                 java.util.UUID.randomUUID().toString(),
                                 username,
                                 resp.body().getToken());
-                Log.d("LOGINLOGIN", "login: " + resp.body());
-                Log.d("LOGINLOGIN", "login: " + resp.code());
-                return new Result.Success<>(fakeUser);
+                return new Result.Success<>(user);
             } else {
                 return new Result.Error(new Exception("Error login"));
             }
 
+        } catch (Exception e) {
+            Log.e("ERROR AUTH", "Crashed login here: ", e);
+            return new Result.Error(new IOException("Error logging in", e));
+        }
+    }
+
+    public Result<LoggedInUser> validateToken(SharedPreferences sharedPreferences) {
+        try {
+            Log.d("AUTH", "validateToken: trying validate token");
+            OkHttpClient client = new OkHttpClient.Builder()
+                    .addInterceptor(new AuthInterceptor(sharedPreferences))
+                    .build();
+            Retrofit retrofit = new Retrofit.Builder()
+                    .baseUrl(BuildConfig.API_URL)
+                    .client(client)
+                    .addConverterFactory(GsonConverterFactory.create())
+                    .build();
+
+            ApiService apiService = retrofit.create(ApiService.class);
+            Response<ValidateTokenResponse> resp = apiService.me().execute();
+            if (resp.isSuccessful() && resp.body() != null) {
+                LoggedInUser user = new LoggedInUser(
+                        java.util.UUID.randomUUID().toString(),
+                        resp.body().getUsername(),
+                        sharedPreferences.getString("token", ""));
+                return new Result.Success<>(user);
+            } else {
+                return new Result.Error(new Exception("Error login"));
+            }
         } catch (Exception e) {
             Log.e("ERROR LOGIN", "Crashed login here: ", e);
             return new Result.Error(new IOException("Error logging in", e));

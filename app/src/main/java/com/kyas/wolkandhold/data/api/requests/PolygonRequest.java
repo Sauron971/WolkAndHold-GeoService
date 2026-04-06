@@ -16,4 +16,14 @@ public class PolygonRequest {
         this.area_m2 = area_m2;
         this.lastUpdated = lastUpdated;
     }
+
+    @Override
+    public String toString() {
+        return "PolygonRequest{" +
+                "owner=" + owner +
+                ", points=" + points +
+                ", area_m2=" + area_m2 +
+                ", lastUpdated=" + lastUpdated +
+                '}';
+    }
 }

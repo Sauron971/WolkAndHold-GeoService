@@ -58,8 +58,18 @@ public class LoginViewModel extends ViewModel {
         }
     }
 
-    public boolean alreadyHasToken() {
-        return loginRepository.isLoggedIn();
+    public void validateLogin() {
+        executor.execute(() -> {
+            Result<LoggedInUser> result = loginRepository.isLoggedIn();
+            if (result instanceof Result.Success) {
+                LoggedInUser data = ((Result.Success<LoggedInUser>) result).getData();
+
+                loginResult.postValue(new LoginResult(new LoggedInUserView(data.getDisplayName())));
+            } else {
+                loginResult.postValue(new LoginResult(R.string.login_failed));
+            }
+        });
+
     }
 
     // A placeholder username validation check

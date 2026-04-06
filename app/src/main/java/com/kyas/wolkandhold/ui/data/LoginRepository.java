@@ -35,14 +35,15 @@ public class LoginRepository {
         return instance;
     }
 
-    public boolean isLoggedIn() {
-        String token = sharedPreferences.getString("token", "0");
+    public Result<LoggedInUser> isLoggedIn() {
 
-        if (token != null && !token.isEmpty() && !token.equals("0")) {
-            return true;
+        Result<LoggedInUser> result = dataSource.validateToken(sharedPreferences);
+
+        if (result instanceof Result.Success) {
+            setLoggedInUser(((Result.Success<LoggedInUser>) result).getData());
         }
 
-        return user != null;
+        return result;
     }
 
     public void logout() {

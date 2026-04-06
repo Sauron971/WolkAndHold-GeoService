@@ -173,6 +173,12 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
                 }
             });
         });
+        routeViewModel.getCroppedTail().observe(getViewLifecycleOwner(), tail -> {
+            if (tail != null && !tail.getPath().isEmpty() && tail.getUserId() != null) {
+                renderingPolylineOfPlayer(tail.getUserId(), tail.getPath());
+                Log.d("CropTail", "Crop tail of player: " + tail.getUsername());
+            }
+        });
 
 
         btnStartRecording.setOnClickListener(v -> {
@@ -190,15 +196,6 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
             } else {
                 btnStartRecording.extend();
             }
-            DialogFactory.showDebugDialog(activity, "Сохранить", "Сохранить тестовый маршрут?", (s -> {
-                List<Point> testPoints = new ArrayList<>();
-                testPoints.add(new Point(56.169070, 40.486509));
-                testPoints.add(new Point(56.169736, 40.485361));
-                testPoints.add(new Point(56.170230, 40.486086));
-                testPoints.add(new Point(56.169506, 40.487235));
-                testPoints.add(new Point(56.169070, 40.486509));
-                routeViewModel.saveRoute(s, testPoints);
-            }));
             return true;
         });
 
@@ -253,7 +250,11 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
     @Override
     public void onHiddenChanged(boolean hidden) {
         super.onHiddenChanged(hidden);
-        Log.d("Fragment", "Resume map fragment");
+        if (hidden) {
+            mapView.onStop();
+        } else {
+            mapView.onStart();
+        }
     }
 
     @Override
@@ -312,18 +313,18 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
     }
     private void stopRecording() {
         Intent intent = new Intent(getContext(), LocationRecordService.class);
-        intent.setAction(LocationRecordService.ACTION_STOP);
+        intent.setAction(LocationRecordService.ACTION_START_IDLE);
         getContext().startService(intent);
         btnStartRecording.setIconResource(R.drawable.ic_play);
         btnStartRecording.setText(R.string.start_record);
         recordingPolyline = null;
         isRecording = false;
-
     }
 
     private void renderPolygon(Polygon polygon, String tapString, String id) {
         PolygonMapObject polygonMapObject = mapView.getMapWindow().getMap().getMapObjects().addPolygon(polygon);
-        polygonMapObject.setFillColor(getRandomColor(0));
+        if (!polygonsMapObjects.containsKey(Long.valueOf(id)))
+            polygonMapObject.setFillColor(getRandomColor(75));
         MapObjectTapListener mapObjectTapListener = new MapObjectTapListener() {
             @Override
             public boolean onMapObjectTap(@NonNull MapObject mapObject, @NonNull Point point) {
@@ -356,16 +357,27 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
             PolylineMapObject line = mapView.getMapWindow().getMap().getMapObjects().addPolyline();
             Polyline geometry = new Polyline(List.of(point));
             line.setGeometry(geometry);
-            line.setStrokeColor(getRandomColor(55));
+            line.setStrokeColor(getRandomColor(Constants.ALPHA_COLOR_OF_POLYLINE));
             playersPolylineMapObjects.put(id, line);
-            Log.d("RenderPolyline", "Added new polyline ");
         } else {
             PolylineMapObject line = playersPolylineMapObjects.get(id);
             List<Point> points = new ArrayList<>(line.getGeometry().getPoints());
             points.add(point);
             Polyline geometry = new Polyline(points);
             line.setGeometry(geometry);
-            Log.d("RenderPolyline", "Added new point to line  " + point);
+        }
+    }
+    private void renderingPolylineOfPlayer(Long id, List<Point> points) {
+        if (!playersPolylineMapObjects.containsKey(id)) {
+            PolylineMapObject line = mapView.getMapWindow().getMap().getMapObjects().addPolyline();
+            Polyline geometry = new Polyline(points);
+            line.setGeometry(geometry);
+            line.setStrokeColor(getRandomColor(Constants.ALPHA_COLOR_OF_POLYLINE));
+            playersPolylineMapObjects.put(id, line);
+        } else {
+            PolylineMapObject line = playersPolylineMapObjects.get(id);
+            Polyline geometry = new Polyline(points);
+            line.setGeometry(geometry);
         }
     }
 

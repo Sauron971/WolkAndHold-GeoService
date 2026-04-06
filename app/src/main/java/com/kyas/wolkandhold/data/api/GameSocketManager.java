@@ -1,20 +1,26 @@
 package com.kyas.wolkandhold.data.api;
 
 import android.annotation.SuppressLint;
+import android.location.Location;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
 import com.google.gson.Gson;
 import com.kyas.wolkandhold.BuildConfig;
+import com.kyas.wolkandhold.data.Constants;
 import com.kyas.wolkandhold.data.api.requests.LocationRequest;
+import com.kyas.wolkandhold.data.api.requests.PathRequest;
 import com.kyas.wolkandhold.data.api.response.PolygonResponse;
+import com.kyas.wolkandhold.data.api.response.TailResponse;
 import com.kyas.wolkandhold.data.api.response.UserResponse;
 import com.kyas.wolkandhold.data.models.PlayerModel;
 import com.kyas.wolkandhold.data.database.entities.Polygon;
+import com.yandex.mapkit.geometry.Point;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
@@ -26,6 +32,14 @@ public class GameSocketManager {
     private StompClient stompClient;
     private final Gson gson = new Gson();
     private CompositeDisposable compositeDisposable = new CompositeDisposable();
+    private Double pendingLat = null;
+    private Double pendingLon = null;
+    private double lastSubLat;
+    private double lastSubLon;
+    private long lastSubTimeMs = 0;
+    private static final double MIN_DISTANCE_M = 300;
+    private static final long MIN_TIME_MS = 60_000;
+    private static final double RADIUS_M = Constants.DEFAULT_SEARCH_RADIUS_METERS;
 
     public interface OnPolygonReceivedListener {
         void onNewPolygons(List<Polygon> polygons);
@@ -46,6 +60,15 @@ public class GameSocketManager {
     public void setPlayerListener(OnPlayerReceivedListener listener) {
         this.listenerPlayer = listener;
     }
+    public interface OnPlayerTailReceivedListener {
+        void onCutTail(TailResponse tail);
+    }
+
+    private OnPlayerTailReceivedListener listenerTail;
+
+    public void setPlayerTailListener(OnPlayerTailReceivedListener listener) {
+        this.listenerTail = listener;
+    }
 
     public void connect(String jwt) {
         stompClient = Stomp.over(Stomp.ConnectionProvider.OKHTTP, BuildConfig.WS_URL);
@@ -60,6 +83,7 @@ public class GameSocketManager {
                     Log.d("WS", "Connected");
                     subscribeToPolygons();
                     subscribeToLocationsOfPlayer();
+                    subscribeToTailsOfPlayers();
 
                     break;
                 case ERROR:
@@ -74,9 +98,13 @@ public class GameSocketManager {
         Log.d("WS_DEBUG", "Connecting to ws with jwt: " + jwt);
         compositeDisposable.add(lifecycle);
         stompClient.connect(headers);
+        if (pendingLon != null && pendingLat != null) {
+            updatePolygonSubscription(pendingLat, pendingLon);
+        }
     }
 
     // Подписка на личную очередь (получение захваченных зон)
+    @SuppressLint("CheckResult")
     private void subscribeToPolygons() {
         Disposable topic = stompClient.topic("/user/queue/polygons")
                 .subscribe(msg -> {
@@ -110,6 +138,18 @@ public class GameSocketManager {
         compositeDisposable.add(topic);
     }
 
+    private void subscribeToTailsOfPlayers() {
+        Disposable topic = stompClient.topic("/topic/tails")
+                .subscribe(msg -> {
+                    TailResponse response = gson.fromJson(msg.getPayload(), TailResponse.class);
+                    if (listenerTail != null) {
+                        listenerTail.onCutTail(response);
+                    }
+                }, err -> Log.e("WS", "Topic error", err));
+
+        compositeDisposable.add(topic);
+    }
+
     @SuppressLint("CheckResult")
     public void sendLocation(double lat, double lon, boolean isCapture) {
         if (stompClient != null && stompClient.isConnected()) {
@@ -121,6 +161,57 @@ public class GameSocketManager {
                     .subscribe(() -> {},
                             err -> Log.e("WS", "Send error", err));
         }
+    }
+    @SuppressLint("CheckResult")
+    public void sendRequestCutTail(List<Point> path) {
+        if (stompClient != null && stompClient.isConnected()) {
+            // Создаем простой объект для отправки
+            PathRequest request = new PathRequest(null, null, path);
+            String json = gson.toJson(request);
+
+            stompClient.send("/app/cutTail", json)
+                    .subscribe(() -> {},
+                            err -> Log.e("WS", "Send error", err));
+        }
+    }
+
+
+    @SuppressLint("CheckResult")
+    public void updatePolygonSubscription(double lat, double lon) {
+        long now = System.currentTimeMillis();
+
+        if (stompClient == null || !stompClient.isConnected()) {
+            pendingLat = lat;
+            pendingLon = lon;
+            return;
+        }
+
+        boolean timeOK = (now - lastSubTimeMs) > MIN_TIME_MS;
+        float[] distance = new float[1];
+        Location.distanceBetween(lastSubLat, lastSubLon, lat, lon, distance);
+        boolean distOk =  distance[0] > MIN_DISTANCE_M;
+        if (!timeOK && !distOk)
+            return;
+
+
+
+        String body = String.format(
+                Locale.getDefault(),
+                "{\"lat\":%f,\"lon\":%f,\"radius\":%.0f}",
+                lat,
+                lon,
+                RADIUS_M);
+
+        stompClient.send("/app/subscribe/polygons", body)
+                .subscribe(
+                        () -> Log.d("WS", "Send OK"),
+                        err -> Log.e("WS", "Send error", err));
+
+        lastSubLat = lat;
+        lastSubLon = lon;
+        lastSubTimeMs = now;
+        pendingLat = null;
+        pendingLon = null;
     }
 
     public void disconnect() {

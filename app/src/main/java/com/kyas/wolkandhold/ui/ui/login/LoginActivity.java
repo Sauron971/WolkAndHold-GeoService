@@ -48,13 +48,7 @@ public class LoginActivity extends AppCompatActivity {
         final ProgressBar loadingProgressBar = binding.loading;
 
         loadingProgressBar.setVisibility(View.VISIBLE);
-        if (loginViewModel.alreadyHasToken()) {
-
-            Intent mainAct = new Intent(this, MainActivity.class);
-            startActivity(mainAct);
-            finish();
-        }
-        loadingProgressBar.setVisibility(View.GONE);
+        loginViewModel.validateLogin();
 
         loginViewModel.getLoginFormState().observe(this, new Observer<LoginFormState>() {
             @Override
@@ -88,7 +82,6 @@ public class LoginActivity extends AppCompatActivity {
                 setResult(Activity.RESULT_OK);
 
                 //Complete and destroy login activity once successful
-                finish();
             }
         });
 
@@ -139,6 +132,7 @@ public class LoginActivity extends AppCompatActivity {
         Intent mainAct = new Intent(this, MainActivity.class);
         startActivity(mainAct);
         Toast.makeText(getApplicationContext(), welcome, Toast.LENGTH_LONG).show();
+        finish();
     }
 
     private void showLoginFailed(@StringRes Integer errorString) {

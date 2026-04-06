@@ -22,6 +22,9 @@ public interface PolygonDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void insertAll(List<Polygon> polygons);
 
+    @Insert
+    void insert(Polygon polygon);
+
     @Update
     int updatePolygon(Polygon polygon);
 

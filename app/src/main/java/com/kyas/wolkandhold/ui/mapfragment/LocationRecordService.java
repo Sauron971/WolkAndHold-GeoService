@@ -55,6 +55,7 @@ public class LocationRecordService extends LifecycleService {
             switch (action) {
                 case ACTION_START_IDLE:
                     startLocationUpdates();
+                    isCaptureMode = false;
                     break;
 
                 case ACTION_START_CAPTURE:
@@ -84,6 +85,9 @@ public class LocationRecordService extends LifecycleService {
                     if (movedEnough && accurateEnough) {
                         lastLocation = loc;
                         repo.emitLocation(loc.getLatitude(), loc.getLongitude(), isCaptureMode);
+                        if (isCaptureMode) {
+                            repo.addPoint(new Point(loc.getLatitude(), loc.getLongitude()));
+                        }
                         Log.d("LocService", "Point send");
                     }
                 }

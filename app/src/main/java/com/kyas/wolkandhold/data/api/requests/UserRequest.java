@@ -8,4 +8,12 @@ public class UserRequest {
         this.id = id;
         this.username = username;
     }
+
+    @Override
+    public String toString() {
+        return "UserRequest{" +
+                "id=" + id +
+                ", username='" + username + '\'' +
+                '}';
+    }
 }

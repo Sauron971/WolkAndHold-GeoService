@@ -4,6 +4,7 @@ import com.kyas.wolkandhold.data.api.requests.LoginRequest;
 import com.kyas.wolkandhold.data.api.requests.PolygonRequest;
 import com.kyas.wolkandhold.data.api.response.AuthResponse;
 import com.kyas.wolkandhold.data.api.response.PolygonResponse;
+import com.kyas.wolkandhold.data.api.response.ValidateTokenResponse;
 
 import java.util.List;
 
@@ -21,8 +22,8 @@ public interface ApiService {
     @POST
     Call<AuthResponse> signup(@Body LoginRequest loginRequest);
 
-    @GET
-    Call<String> me();
+    @GET("api/auth/me")
+    Call<ValidateTokenResponse> me();
 
     @GET("/api/polygons/{lat}/{lon}/{radius}")
     Call<List<PolygonResponse>> getPolygonsInRadius(@Path("lat") double latitude,
@@ -30,6 +31,6 @@ public interface ApiService {
                                                     @Path("radius") double radius);
 
     @POST("/api/polygons")
-    Call<PolygonResponse> upsertPolygon(@Body PolygonRequest polygonRequest);
+    Call<PolygonResponse> insertPolygon(@Body PolygonRequest polygonRequest);
 
 }

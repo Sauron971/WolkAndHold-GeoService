@@ -1,5 +1,7 @@
 package com.kyas.wolkandhold.data.api;
 
+import android.content.SharedPreferences;
+
 import androidx.annotation.NonNull;
 
 import java.io.IOException;
@@ -9,10 +11,10 @@ import okhttp3.Request;
 import okhttp3.Response;
 
 public class AuthInterceptor implements Interceptor {
-    private String token;
+    private SharedPreferences sharedPreferences;
 
-    public AuthInterceptor(String token) {
-        this.token = token;
+    public AuthInterceptor(SharedPreferences sharedPreferences) {
+        this.sharedPreferences = sharedPreferences;
     }
 
     @NonNull
@@ -20,7 +22,7 @@ public class AuthInterceptor implements Interceptor {
     public Response intercept(@NonNull Chain chain) throws IOException {
         Request original = chain.request();
         Request.Builder builder = original.newBuilder()
-                .header("Authorization", "Bearer " + token);
+                .header("Authorization", "Bearer " + sharedPreferences.getString("token", ""));
         Request request = builder.build();
         return chain.proceed(request);
     }
