@@ -5,10 +5,12 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.PointF;
+import android.graphics.drawable.Drawable;
 import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
@@ -35,11 +37,9 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.kyas.wolkandhold.R;
 import com.kyas.wolkandhold.data.Constants;
 import com.kyas.wolkandhold.data.RouteViewModel;
-import com.kyas.wolkandhold.ui.MainActivity;
+import com.kyas.wolkandhold.ui.data.model.PolygonUiModel;
 import com.kyas.wolkandhold.ui.ui.login.LoginActivity;
-import com.kyas.wolkandhold.utils.DialogFactory;
 import com.yandex.mapkit.Animation;
-import com.yandex.mapkit.MapKitFactory;
 import com.yandex.mapkit.geometry.LinearRing;
 import com.yandex.mapkit.geometry.Point;
 import com.yandex.mapkit.geometry.Polygon;
@@ -53,19 +53,21 @@ import com.yandex.mapkit.map.PlacemarkMapObject;
 import com.yandex.mapkit.map.PolygonMapObject;
 import com.yandex.mapkit.map.PolylineMapObject;
 import com.yandex.mapkit.map.RotationType;
+import com.yandex.mapkit.map.TextStyle;
 import com.yandex.mapkit.mapview.MapView;
-import com.yandex.mapkit.user_location.UserLocationLayer;
 import com.yandex.mapkit.user_location.UserLocationObjectListener;
 import com.yandex.mapkit.user_location.UserLocationView;
 import com.yandex.runtime.image.ImageProvider;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -105,7 +107,6 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         btnStartRecording = view.findViewById(R.id.fab_start_record);
         btnCenterLocation = view.findViewById(R.id.fab_center_location);
         btnAvatar = view.findViewById(R.id.fap_avatar);
-
         dimOverlay = view.findViewById(R.id.dim_overlay);
         infoOwner = view.findViewById(R.id.info_owner);
         infoArea = view.findViewById(R.id.info_area);
@@ -113,10 +114,10 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         playersMarkMapObjects = new HashMap<>();
         playersPolylineMapObjects = new HashMap<>();
 
-        UserLocationLayer ull = MapKitFactory.getInstance().createUserLocationLayer(mapView.getMapWindow());
-        ull.setObjectListener(this);
-        ull.setVisible(true);
-        ull.setHeadingModeActive(true);
+        //UserLocationLayer ull = MapKitFactory.getInstance().createUserLocationLayer(mapView.getMapWindow());
+        //ull.setObjectListener(this);
+        //ull.setVisible(true);
+        //ull.setHeadingModeActive(true);
 
         view.findViewById(R.id.btn_close_info).setOnClickListener(v -> hidePolygonInfo());
         dimOverlay.setOnClickListener(v -> hidePolygonInfo());
@@ -167,19 +168,21 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
             }
         });
         routeViewModel.getPolygons().observe(getViewLifecycleOwner(), (list) -> {
-            List<Long> idsToDelete = list
-                    .stream()
-                    .filter(model -> polygonsMapObjects.containsKey(Long.valueOf(model.id)))
-                    .map(model -> Long.valueOf(model.id))
-                    .collect(Collectors.toList());
-            idsToDelete.forEach(polygonsMapObjects::remove);
+            Set<Long> idsToDelete = new HashSet<>(polygonsMapObjects.keySet());
+            Set<Long> incomingIds = list.stream().map(p -> Long.valueOf(p.id)).collect(Collectors.toSet());
+            idsToDelete.removeAll(incomingIds);
+            idsToDelete.forEach(l -> {
+                mapView.getMapWindow().getMap().getMapObjects().remove(polygonsMapObjects.get(l).obj);
+                polygonsMapObjects.remove(l);
+                Log.d("MapPolygonSync", "Removed polygon: " + l);
+            });
             list.forEach(this::renderPolygon);
         });
 
         routeViewModel.getPlayersMarks().observe(getViewLifecycleOwner(), (list) -> {
             //Обновление отображения точки и маршрута других игроков
             list.forEach((m) -> {
-                renderingMarkOfPlayer(m.id, m.playerName, m.point);
+                renderingMarkOfPlayer(m.id, m.playerName, m.point, m.isCapture);
                 if(m.isCapture && !Objects.equals(routeViewModel.getSession().getUserId(), m.id)) {
                     renderingPolylineOfPlayer(m.id, m.point);
                 }
@@ -354,24 +357,38 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
             };
             polygonMapObject.addTapListener(mapObjectTapListener);
             polygonsMapObjects.put(Long.valueOf(uiModel.id), new PolygonData(polygonMapObject, mapObjectTapListener));
+            Log.d("RenderPolygon", "Add new polygon with id and owner: " + uiModel.id + " | " + uiModel.ownerLabel);
         } else {
             PolygonData polyData = polygonsMapObjects.get(Long.valueOf(uiModel.id));
             if (polyData != null) {
+                Log.d("RenderPolygon", "Change polygon with id and owner: " + uiModel.id + " | " + uiModel.ownerLabel);
                 polyData.obj.setGeometry(new Polygon(new LinearRing(uiModel.points), new ArrayList<>()));
             }
         }
     }
 
-    private void renderingMarkOfPlayer(Long id, String playerName, Point point) {
+    private void renderingMarkOfPlayer(Long id, String playerName, Point point, boolean isCapture) {
         if (!playersMarkMapObjects.containsKey(id)) {
             PlacemarkMapObject mark = mapView.getMapWindow().getMap().getMapObjects().addPlacemark();
             mark.setGeometry(point);
-            mark.setText(playerName);
-            mark.setIcon(ImageProvider.fromResource(activity, R.drawable.ic_pin));
+            TextStyle textStyle = new TextStyle();
+            textStyle.setPlacement(TextStyle.Placement.TOP);
+            textStyle.setSize(10f);
+            mark.setText(playerName, textStyle);
+            Bitmap imageIcon = getBitmapFromVectorDrawable(activity, R.drawable.ic_pin_user);
+            if (isCapture) {
+                imageIcon = getBitmapFromVectorDrawable(activity, R.drawable.ic_pin_user_running);
+            }
+            mark.setIcon(ImageProvider.fromBitmap(imageIcon));
             playersMarkMapObjects.put(id, mark);
         } else {
             PlacemarkMapObject mark = playersMarkMapObjects.get(id);
             if (mark != null) {
+                Bitmap imageIcon = getBitmapFromVectorDrawable(activity, R.drawable.ic_pin_user);
+                if (isCapture) {
+                    imageIcon = getBitmapFromVectorDrawable(activity, R.drawable.ic_pin_user_running);
+                }
+                mark.setIcon(ImageProvider.fromBitmap(imageIcon));
                 mark.setGeometry(point);
             }
         }
@@ -415,7 +432,15 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
         return Color.argb(alpha, r, g, b);
     }
     private void showPolygonInfo(PolygonUiModel data) {
-        infoArea.setText(String.format(Locale.getDefault(), "Площадь: %.2f м²", data.area));
+        String formattedArea;
+        if (data.area >= 1_000_000) {
+            // Если площадь огромная, переводим в км²
+            formattedArea = String.format(Locale.getDefault(), "%.2f км²", data.area / 1_000_000.0);
+        } else {
+            // Выводим в м² без лишних знаков после запятой
+            formattedArea = String.format(Locale.getDefault(), "%.0f м²", data.area);
+        }
+        infoArea.setText(formattedArea);
         infoOwner.setText("Владелец: " + data.ownerLabel);
 
         dimOverlay.setAlpha(0f);
@@ -505,6 +530,25 @@ public class MapFragment extends Fragment implements UserLocationObjectListener 
     private boolean isLocationEnabled() {
         LocationManager locationManager = (LocationManager) activity.getSystemService(Context.LOCATION_SERVICE);
         return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) || locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+    }
+    public Bitmap getBitmapFromVectorDrawable(Context context, int drawableId) {
+        Drawable drawable = ContextCompat.getDrawable(context, drawableId);
+        if (drawable == null) {
+            return null;
+        }
+
+        // Создаем Bitmap с размерами вектора
+        Bitmap bitmap = Bitmap.createBitmap(
+                drawable.getIntrinsicWidth(),
+                drawable.getIntrinsicHeight(),
+                Bitmap.Config.ARGB_8888
+        );
+
+        Canvas canvas = new Canvas(bitmap);
+        drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+        drawable.draw(canvas);
+
+        return bitmap;
     }
 
 

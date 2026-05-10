@@ -7,7 +7,7 @@
     <string name="dialog_message_short_route">Ваш маршрут слишком короткий. Хотите остановить запись без сохранения?</string>
     <string name="dialog_message_big_difference_route">Первая точка слишком далеко от последней (макс 100 м). Такой маршрут невозможно сохранить. Хотите остановить запись без сохранения?</string>
 
-    <string name="location_is_disabled">Пожалуйста включить вашу геолокацию</string>
+    <string name="location_is_disabled">Пожалуйста включите вашу геолокацию</string>
 
     <string name="next">Next</string>
     <string name="previous">Previous</string>
@@ -17,16 +17,17 @@
     <string name="stop_record">Остановить запись</string>
     <string name="title_activity_login">LoginActivity</string>
     <string name="prompt_email">Email</string>
-    <string name="prompt_password">Password</string>
-    <string name="action_sign_in">Sign in or register</string>
-    <string name="action_sign_in_short">Sign in</string>
-    <string name="welcome">"Welcome !"</string>
+    <string name="prompt_password">Пароль</string>
+    <string name="action_sign_in">Войти</string>
+    <string name="action_sign_in_short">Войти</string>
+    <string name="welcome">"Добро пожаловать %1$s!"</string>
     <string name="invalid_username">Not a valid username</string>
     <string name="invalid_password">Password must be >5 characters</string>
     <string name="login_failed">"Login failed"</string>
-    <string name="prompt_username">Username</string>
+    <string name="prompt_username">Имя пользователя</string>
     <string name="territory_info">Territory_Info</string>
     <string name="close">Закрыть</string>
     <string name="territory_title">Территория</string>
+    <string name="title_leaders">Лидеры</string>
 
 </resources>

@@ -9,4 +9,8 @@
         <item name="colorError">@color/colorError</item>
         <item name="colorOnBackground">@color/colorOnBackground</item>
     </style>
+    <style name="RoundedImageView">
+        <item name="cornerSize">50dp</item>
+        <item name="cornerFamily">rounded</item>
+    </style>
 </resources>

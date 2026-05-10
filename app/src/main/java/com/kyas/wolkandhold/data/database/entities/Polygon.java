@@ -14,8 +14,8 @@ import java.util.List;
 @Entity(tableName = "polygons")
 public class Polygon {
     @PrimaryKey(autoGenerate = true)
-    public long id;
-    public long userId;
+    public Long id;
+    public Long userId;
     public String ownerName;
 
     public String pointsJson;

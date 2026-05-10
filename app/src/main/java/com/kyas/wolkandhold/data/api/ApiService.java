@@ -6,6 +6,7 @@ import com.kyas.wolkandhold.data.api.requests.SignupRequest;
 import com.kyas.wolkandhold.data.api.response.AuthResponse;
 import com.kyas.wolkandhold.data.api.response.PolygonResponse;
 import com.kyas.wolkandhold.data.api.response.ValidateTokenResponse;
+import com.kyas.wolkandhold.ui.leaderboard.LeaderModel;
 
 import java.util.List;
 
@@ -31,6 +32,8 @@ public interface ApiService {
                                                     @Path("lon") double longitude,
                                                     @Path("radius") double radius);
 
+    @GET("/api/players/leaderboard")
+    Call<List<LeaderModel>> getLeaderboard();
     @POST("/api/polygons")
     Call<PolygonResponse> insertPolygon(@Body PolygonRequest polygonRequest);
 

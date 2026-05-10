@@ -1,8 +1,6 @@
-package com.kyas.wolkandhold.ui.mapfragment;
+package com.kyas.wolkandhold.ui.data.model;
 
 import com.yandex.mapkit.geometry.Point;
-
-import java.util.List;
 
 public class PlayerMarkUiModel {
     public Long id;

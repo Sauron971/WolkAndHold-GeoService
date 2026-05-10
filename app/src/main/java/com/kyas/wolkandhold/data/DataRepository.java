@@ -40,17 +40,24 @@ import com.kyas.wolkandhold.data.database.entities.Polygon;
 import com.kyas.wolkandhold.data.database.entities.Route;
 import com.kyas.wolkandhold.ui.data.UserRepository;
 import com.kyas.wolkandhold.ui.data.model.LoggedInUser;
+import com.kyas.wolkandhold.ui.leaderboard.LeaderModel;
 import com.yandex.mapkit.geometry.Point;
 
+import java.io.IOException;
 import java.lang.reflect.Type;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import okhttp3.OkHttpClient;
@@ -158,12 +165,15 @@ public class DataRepository {
                 && wasOpen
                 && nowClosed
                 && area >= 30){
+            points.postValue(current);
             saveRoute(LocalDateTime.now().toString());
+            points.postValue(new ArrayList<>());
+        } else {
+            points.postValue(current);
         }
-        points.postValue(current);
     }
     public void clearPoints() {
-        if (points.getValue() != null || !points.getValue().isEmpty())
+        if (points.getValue() != null && !points.getValue().isEmpty())
             socketManager.sendRequestCutTail(points.getValue());
         points.postValue(new ArrayList<>());
     }
@@ -302,7 +312,12 @@ public class DataRepository {
                             responses.forEach((r) -> {
                                 list.addAll(r.toEntities());
                             });
+                            Set<Long> serverIds = new HashSet<>();
+                            responses.forEach(r -> {
+                                serverIds.add(r.getId());
+                            });
                             PolygonDao dao = db.getPolygonDao();
+                            dao.syncWithServerIds(serverIds);
                             list.forEach(dao::upsert);
                         });
                         Log.d("API", "Get polygons: " + responses);
@@ -323,7 +338,32 @@ public class DataRepository {
                 Log.d("API", "Failure response get polygons " + t.getLocalizedMessage());
             }
         });
+    }
 
+    public void fetchLeaderboard(MutableLiveData<List<LeaderModel>> data) {
+        apiService.getLeaderboard().enqueue(new Callback<List<LeaderModel>>() {
+            @Override
+            public void onResponse(Call<List<LeaderModel>> call, Response<List<LeaderModel>> response) {
+                if (response.isSuccessful()) {
+                    data.postValue(response.body());
+                    Log.d("GetLeaderboard", "Response successfuly = " + response.body());
+                }else {
+                    Log.e("API_ERROR", "Код ошибки: " + response.code());
+
+                    try {
+                        // Читаем само сообщение об ошибке от сервера
+                        Log.e("API_ERROR", "Тело ошибки: " + response.errorBody().string());
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Call<List<LeaderModel>> call, Throwable t) {
+                Log.d("GetLeaderboard", "Response error = " + t.getMessage());
+            }
+        });
     }
 
     //Метод для высчитывания площади в м2 произвольного многоугольника на поверхности земли
@@ -362,13 +402,16 @@ public class DataRepository {
     public void setPolygonListener() {
         socketManager.setPolygonListener(polys -> {
             executor.execute(() -> {
-                if (polys.stream().noneMatch(p -> p.pointsJson.isEmpty())) {
-                    for (Polygon poly : polys.stream().filter(p-> p.pointsJson.isEmpty()).collect(Collectors.toList())) {
-                        db.getPolygonDao().deletePolygonById(poly.id);
-                        polys.remove(poly);
+                PolygonDao daoPoly = db.getPolygonDao();
+                for (Polygon poly : polys) {
+                    boolean notHavePoints = poly.pointsJson == null || poly.pointsJson.equals("[]") || poly.pointsJson.isEmpty();
+                    if (notHavePoints) {
+                        int deleteResult = daoPoly.deletePolygonById(poly.id);
+                        Log.d("PolygonListener", "Found empty polygon id:" + poly.id + ". Deleting: " + deleteResult);
+                    } else {
+                        daoPoly.upsert(poly);
                     }
                 }
-                db.getPolygonDao().insertAll(polys);
                 boolean pointContains = false;
                 int index = -1;
                 List<Point> currentPoints = points.getValue();
@@ -390,8 +433,6 @@ public class DataRepository {
                 if (pointContains && index != -1) {
                     socketManager.sendRequestCutTail(currentPoints.subList(index, currentPoints.size()));
                     points.postValue(currentPoints.subList(index, currentPoints.size()));
-                } else {
-                    clearPoints();
                 }
             });
         });

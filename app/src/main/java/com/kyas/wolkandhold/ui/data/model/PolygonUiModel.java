@@ -1,4 +1,4 @@
-package com.kyas.wolkandhold.ui.mapfragment;
+package com.kyas.wolkandhold.ui.data.model;
 
 import com.yandex.mapkit.geometry.Point;
 

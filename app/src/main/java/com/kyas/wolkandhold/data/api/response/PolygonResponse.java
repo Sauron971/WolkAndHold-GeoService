@@ -20,59 +20,52 @@ public class PolygonResponse {
     private String wkt;
 
     public List<Polygon> toEntities() {
-        // 1) Нормализация
         String src = wkt == null ? "" : wkt.trim();
-        if (src.isEmpty()) return Collections.emptyList();
-        // 2) Убираем префикс геометрии, но не режем строку "по индексам"
-        // Поддержка: POLYGON(...) и MULTIPOLYGON(...)
-        String body;
-        if (src.startsWith("MULTIPOLYGON")) {
-            body = src.substring("MULTIPOLYGON".length()).trim();
-        } else if (src.startsWith("POLYGON")) {
-            body = src.substring("POLYGON".length()).trim();
-        } else {
-            // неизвестный формат
-            return Collections.emptyList();
-        }
-        // 3) Удаляем все скобки, чтобы гарантированно не осталось ")" в числах
-        String flat = body.replace("(", " ").replace(")", " ").trim();
-        // 4) Делим на пары координат "lon lat" по запятым
-        // пример после flatten: "37.61 55.75, 37.62 55.76, ..."
-        String[] pairs = flat.split(",");
         List<Point> points = new ArrayList<>();
-        for (String pairRaw : pairs) {
-            String pair = pairRaw.trim();
-            if (pair.isEmpty()) continue;
-            // Важно: split по любому количеству пробелов
-            String[] parts = pair.split("\\s+");
-            if (parts.length < 2) continue;
-            // WKT обычно: lon lat
-            String lonStr = parts[0].trim();
-            String latStr = parts[1].trim();
-            try {
-                double lon = Double.parseDouble(lonStr);
-                double lat = Double.parseDouble(latStr);
-                points.add(new Point(lat, lon)); // yandex Point(lat, lon)
-            } catch (NumberFormatException ignoreBadPair) {
-                // лог + пропуск кривой пары
-                Log.e("PolygonResponse", "Response not parse, coordinates is wrong");
+
+        // Парсим, только если строка не пустая
+        if (!src.isEmpty()) {
+            String body;
+            if (src.startsWith("MULTIPOLYGON")) {
+                body = src.substring("MULTIPOLYGON".length()).trim();
+            } else if (src.startsWith("POLYGON")) {
+                body = src.substring("POLYGON".length()).trim();
+            } else {
+                return Collections.emptyList();
+            }
+
+            String flat = body.replace("(", " ").replace(")", " ").trim();
+            String[] pairs = flat.split(",");
+            for (String pairRaw : pairs) {
+                String pair = pairRaw.trim();
+                if (pair.isEmpty()) continue;
+                String[] parts = pair.split("\\s+");
+                if (parts.length < 2) continue;
+                try {
+                    double lon = Double.parseDouble(parts[0].trim());
+                    double lat = Double.parseDouble(parts[1].trim());
+                    points.add(new Point(lat, lon));
+                } catch (NumberFormatException ignore) {
+                    Log.e("PolygonResponse", "Response not parse");
+                }
+            }
+
+            if (points.size() > 1 && isSame(points.get(0), points.get(points.size() - 1))) {
+                points.remove(points.size() - 1);
             }
         }
-        if (points.isEmpty()) return Collections.emptyList();
-        // 5) Если полигон "замкнут" (последняя точка = первая), можно убрать дубль
-        if (points.size() > 1 && isSame(points.get(0), points.get(points.size() - 1))) {
-            points.remove(points.size() - 1);
-        }
-        // 6) Сериализуем points в JSON безопасно через Gson
-        String pointsJson = new Gson().toJson(points);
+
+        // ВАЖНО: Мы создаем объект даже если points пустой!
         Polygon poly = new Polygon();
         poly.id = this.id;
         poly.userId = this.owner.getUserId();
         poly.ownerName = this.owner.getUsername();
         poly.area = this.square;
         poly.lastUpdated = this.lastUpdated;
-        poly.pointsJson = pointsJson;
-        return List.of(poly); // если нужен один контур
+        // Если points пустой, Gson создаст строку "[]"
+        poly.pointsJson = new Gson().toJson(points);
+
+        return List.of(poly);
     }
     // с эпсилоном, чтобы не страдать от погрешностей double
     private boolean isSame(Point a, Point b) {

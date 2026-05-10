@@ -15,21 +15,22 @@ import com.kyas.wolkandhold.data.api.response.TailResponse;
 import com.kyas.wolkandhold.data.models.PlayerModel;
 import com.kyas.wolkandhold.data.database.entities.Polygon;
 import com.kyas.wolkandhold.data.database.entities.Route;
-import com.kyas.wolkandhold.ui.data.LoginDataSource;
-import com.kyas.wolkandhold.ui.data.LoginRepository;
-import com.kyas.wolkandhold.ui.data.UserRepository;
 import com.kyas.wolkandhold.ui.data.model.LoggedInUser;
-import com.kyas.wolkandhold.ui.mapfragment.PlayerMarkUiModel;
-import com.kyas.wolkandhold.ui.mapfragment.PolygonUiModel;
+import com.kyas.wolkandhold.ui.data.model.PlayerMarkUiModel;
+import com.kyas.wolkandhold.ui.data.model.PolygonUiModel;
+import com.kyas.wolkandhold.ui.leaderboard.LeaderModel;
 import com.yandex.mapkit.geometry.Point;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 public class RouteViewModel extends AndroidViewModel {
 
     private final DataRepository repo = DataRepository.getInstance(getApplication());
+
+    private final MutableLiveData<List<LeaderModel>> leaderboard = new MutableLiveData<>(new ArrayList<>());
 
     public RouteViewModel(@NonNull Application application) {
         super(application);
@@ -52,7 +53,6 @@ public class RouteViewModel extends AndroidViewModel {
         return repo.getRoutes();
     }
 
-    // CHANGE: Прокси-методы для обновления/удаления
     public void renameRoute(Route route, String newName) {
         repo.renameRoute(route, newName);
     }
@@ -141,5 +141,11 @@ public class RouteViewModel extends AndroidViewModel {
 
     }
 
+    public void loadLeaderboard() {
+        repo.fetchLeaderboard(leaderboard);
+    }
+    public LiveData<List<LeaderModel>> getLeaderboard() {
+        return leaderboard;
+    }
 
 }

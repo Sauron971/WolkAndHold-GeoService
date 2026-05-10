@@ -20,7 +20,7 @@
             android:layout_margin="20dp"
             android:layout_marginTop="20dp"
             android:clickable="true"
-            tools:src="@tools:sample/avatars" />
+            tools:src="@drawable/ic_avatar" />
     </com.yandex.mapkit.mapview.MapView>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -38,7 +38,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/start_record"
-        android:layout_marginBottom="88dp"
+        android:layout_marginBottom="125dp"
         android:layout_marginStart="@dimen/fab_margin"
         android:layout_marginEnd="@dimen/fab_margin"
         app:icon="@drawable/ic_play"
@@ -53,7 +53,7 @@
         android:clickable="true"
         android:focusable="true">
 
-        <!-- Сама карточка меню по центру -->
+        <!-- Карточка меню по центру -->
         <androidx.cardview.widget.CardView
             android:layout_width="300dp"
             android:layout_height="wrap_content"

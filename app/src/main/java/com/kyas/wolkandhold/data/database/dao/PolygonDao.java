@@ -12,7 +12,9 @@ import androidx.room.Upsert;
 
 import com.kyas.wolkandhold.data.database.entities.Polygon;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Dao
 public interface PolygonDao {
@@ -40,12 +42,22 @@ public interface PolygonDao {
 
     @Query("Select * From polygons")
     List<Polygon> getAllPolygons();
+    @Query("Select id From polygons")
+    List<Long> getAllIds();
+
+    @Transaction
+    default void syncWithServerIds(Set<Long> serverIds) {
+        Set<Long> idsToDelete = new HashSet<>(getAllIds());
+        idsToDelete.removeAll(serverIds);
+        idsToDelete.forEach(this::deletePolygonById);
+    }
+
 
     @Query("Select * From polygons")
     LiveData<List<Polygon>> getAllPolygonsLive();
 
     @Query("Delete From polygons Where id = :id")
-    void deletePolygonById(long id);
+    int deletePolygonById(long id);
 
     @Query("Delete From polygons ")
     void deleteAll();

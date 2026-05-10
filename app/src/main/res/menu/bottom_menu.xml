@@ -9,6 +9,12 @@
     <item
         android:id="@+id/routesFragment"
         android:icon="@drawable/ic_route"
-        android:title="@string/title_routes" />
+        android:title="@string/title_routes"
+        android:visible="false"/>
+    <item
+        android:id="@+id/bottomSheetLeaders"
+        android:icon="@drawable/ic_king_crown"
+        android:title="@string/title_leaders"/>
+
 
 </menu>
