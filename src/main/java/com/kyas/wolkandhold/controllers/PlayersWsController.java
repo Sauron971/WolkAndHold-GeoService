@@ -20,20 +20,10 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class PlayersWsController {
 
-    private final Map<String, Subscription> subscriptions = new ConcurrentHashMap<>();
     private final SimpMessagingTemplate messagingTemplate;
     static final Logger log =
             LoggerFactory.getLogger(PlayersWsController.class);
 
-
-    @MessageMapping("/subscribe/players")
-    public void subscribe(Subscription sub, Principal principal, StompHeaderAccessor accessor) {
-        CustomUserDetails ud = (CustomUserDetails) ((Authentication) principal).getPrincipal();
-        String sessionId = accessor.getSessionId();
-        sub.setUserId(ud.getId());
-        subscriptions.put(sessionId, sub);
-        log.info("Get subscribe to PlayerWS {} | {}", sessionId, sub);
-    }
 
     @MessageMapping("/move")
     public void movePlayer(LocationPlayerDto locationPlayerDto, Principal principal) {
@@ -45,6 +35,6 @@ public class PlayersWsController {
                 "/topic/all_players",
                 locationPlayerDto
         );
-        log.info("SEND TO ALL PLAYERS lat={} lon={}",locationPlayerDto.getLat(), locationPlayerDto.getLon());
+        log.info("SEND TO ALL PLAYERS lat={} lon={} isCapturing?={}",locationPlayerDto.getLat(), locationPlayerDto.getLon(), locationPlayerDto.isCapture());
     }
 }

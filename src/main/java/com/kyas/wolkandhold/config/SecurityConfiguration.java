@@ -51,7 +51,7 @@ public class SecurityConfiguration {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cc = new CorsConfiguration();
-        cc.setAllowedOrigins(List.of("*"));           // для продакшена лучше указать конкретные origin
+        cc.setAllowedOrigins(List.of("*"));
         cc.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
         cc.setAllowedHeaders(List.of("*"));
         cc.setExposedHeaders(List.of("Authorization"));
@@ -69,7 +69,7 @@ public class SecurityConfiguration {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         // Разрешаем регистрацию/логин без токена
-                        .requestMatchers("/api/auth/signup", "/api/auth/login", "/ws/**").permitAll()
+                        .requestMatchers("/api/auth/signup", "/api/auth/login", "/ws/**", "/api/players/leaderboard").permitAll()
                         // всё остальное — только с токеном
                         .anyRequest().authenticated()
                 )

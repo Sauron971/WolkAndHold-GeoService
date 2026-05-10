@@ -22,7 +22,7 @@ public class PolygonResponse {
                 new UserDto(entity.getOwner().getId(), entity.getOwner().getUsername()),
                 entity.getSquare(),
                 entity.getLastUpdated(),
-                entity.getArea().toString(),
+                entity.getArea() == null ? "" : entity.getArea().toString(),
                 entity.getTitle());
     }
 }

@@ -58,7 +58,8 @@ public class PolygonController {
     @PostMapping()
     public ResponseEntity<?> createPolygon(@AuthenticationPrincipal CustomUserDetails ud,
                                            @RequestBody PolygonDto polygonDto) throws JsonProcessingException {
-        PolygonEntity entity = polygonService.upsertPolygon(ud.getId(), polygonDto);
+        polygonDto.setOwner(new UserDto(ud.getId(), ud.getUsername()));
+        PolygonEntity entity = polygonService.createPolygon(polygonDto);
         String wkt = entity.getArea().toText();
 
         PolygonResponse resp = new PolygonResponse(
@@ -70,7 +71,7 @@ public class PolygonController {
                 wkt,
                 entity.getTitle()
         );
-        log.info("Upserting polygon userId = {}, dto = {}", ud.getId(), polygonDto );
+        log.info("Insert polygon userId = {}, dto = {}", ud.getId(), polygonDto );
         return ResponseEntity.ok(resp);
     }
 

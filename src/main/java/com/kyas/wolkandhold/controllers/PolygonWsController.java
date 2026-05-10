@@ -10,6 +10,8 @@ import com.kyas.wolkandhold.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.*;
+import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.io.WKTReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -37,13 +39,13 @@ public class PolygonWsController {
     @MessageMapping("/subscribe/polygons")
     public void subscribe(Subscription sub, Principal principal, StompHeaderAccessor accessor) {
         CustomUserDetails ud = (CustomUserDetails) ((Authentication) principal).getPrincipal();
-        String sessionId = accessor.getSessionId();
+        String username = principal.getName();
         sub.setUserId(ud.getId());
-        subscriptions.put(sessionId, sub);
-        log.info("Get subscribe to PolygonWS {} | {}", sessionId, sub);
+        subscriptions.put(username, sub);
+        log.info("Get subscribe to PolygonWS {} | {}", username, sub);
     }
 
-    public void notifyPolygonUpdated(PolygonResponse polygon) throws JsonProcessingException {
+    public void notifyPolygonUpdated(PolygonResponse polygon)  {
         for (var entry : subscriptions.entrySet()) {
             Subscription sub = entry.getValue();
 
@@ -58,35 +60,63 @@ public class PolygonWsController {
 
         }
     }
+    public void notifyPolygonUpdated(List<PolygonResponse> polygons)  {
+        for (var entry : subscriptions.entrySet()) {
+            Subscription sub = entry.getValue();
 
-    private boolean polygonInsideRadius(PolygonResponse polygon, Subscription sub) throws JsonProcessingException {
+            log.info("Notify poly update is not send");
+            if (polygonInsideRadius(polygons, sub)) {
+                messagingTemplate.convertAndSendToUser(
+                        entry.getKey(),
+                        "/queue/polygons",
+                        polygons
+                );
+                log.info("Notify polygons update: {}", polygons );
+            }
+
+        }
+    }
+
+    private boolean polygonInsideRadius(PolygonResponse polygon, Subscription sub)  {
+        if (polygon.getWkt() == null || polygon.getWkt().isBlank()) {
+            // Deletion event (empty geometry) must be delivered to keep clients in sync.
+            return true;
+        }
         Point center = geometryFactory.createPoint(new Coordinate(sub.getLon(), sub.getLat()));
         Geometry buffer = center.buffer(sub.getRadius() / 111_000.0); 
 
-        Geometry poly = fromJson(polygon.getWkt());
+        Geometry poly = fromWkt(polygon.getWkt());
         return buffer.intersects(poly);
     }
-
-    private Polygon fromJson(String pointsJson) throws JsonProcessingException {
-
-        ObjectMapper objectMapper = new ObjectMapper();
-        List<PointDto> points = objectMapper.readValue(pointsJson, new TypeReference<>() {});
-
-
-        Coordinate[] coords = points.stream()
-                .map(p -> new Coordinate(p.getLongitude(), p.getLatitude()))
-                .toArray(Coordinate[]::new);
-
-
-        if (!coords[0].equals2D(coords[coords.length - 1])) {
-            Coordinate[] closed = new Coordinate[coords.length + 1];
-            System.arraycopy(coords, 0, closed, 0, coords.length);
-            closed[closed.length - 1] = coords[0];
-            coords = closed;
+    private boolean polygonInsideRadius(List<PolygonResponse> polygons, Subscription sub)  {
+        if (polygons == null || polygons.isEmpty()) {
+            return false;
         }
+        boolean hasDeletionEvents = polygons.stream()
+                .map(PolygonResponse::getWkt)
+                .anyMatch(wkt -> wkt == null || wkt.isBlank());
+        Point center = geometryFactory.createPoint(new Coordinate(sub.getLon(), sub.getLat()));
+        Geometry buffer = center.buffer(sub.getRadius() / 111_000.0);
+        boolean isInside = false;
+        for (PolygonResponse polygon : polygons) {
+            if (polygon.getWkt() == null || polygon.getWkt().isBlank()) {
+                continue;
+            }
+            Geometry poly = fromWkt(polygon.getWkt());
+            log.info("Geometry from wkt = {}", poly.toString());
+            log.info("Geometry wkt = {}", polygon.getWkt());
+            isInside = buffer.intersects(poly);
+            if (isInside)
+                return isInside;
+        }
+        return hasDeletionEvents;
+    }
 
-
-        LinearRing shell = geometryFactory.createLinearRing(coords);
-        return geometryFactory.createPolygon(shell);
+    private Geometry fromWkt(String wkt) {
+        try {
+            return new WKTReader(geometryFactory).read(wkt);
+        } catch (ParseException e) {
+            throw new IllegalArgumentException("Invalid WKT: " + wkt, e);
+        }
     }
 }

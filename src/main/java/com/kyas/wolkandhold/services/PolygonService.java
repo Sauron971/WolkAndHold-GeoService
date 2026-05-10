@@ -1,6 +1,7 @@
 package com.kyas.wolkandhold.services;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.kyas.wolkandhold.controllers.PolygonController;
 import com.kyas.wolkandhold.controllers.PolygonWsController;
 import com.kyas.wolkandhold.dao.PolygonRepository;
 import com.kyas.wolkandhold.dao.UserRepository;
@@ -12,10 +13,13 @@ import com.kyas.wolkandhold.entity.UserEntity;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.locationtech.jts.geom.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -28,6 +32,9 @@ public class PolygonService {
 
     private final EntityManager entityManager;
     private final PolygonWsController polygonWsController;
+    private final IntersectsPolygonService intersectsPolygonService;
+    static final Logger log =
+            LoggerFactory.getLogger(PolygonService.class);
 
 
     public List<PolygonEntity> findInRadius(double lat, double lon, double radiusKm) {
@@ -44,24 +51,41 @@ public class PolygonService {
                 .setParameter("radius", radiusKm*1000)
                 .getResultList();
     }
-
-    public PolygonEntity createPolygon(PolygonDto polygonDto) {
+    @Transactional
+    public PolygonEntity createPolygon(PolygonDto polygonDto) throws JsonProcessingException {
         Polygon jtsPolygon = fromPoints(polygonDto.getPoints());
 
         UserEntity user = userRepository.findById(polygonDto.getOwner().getId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
+        List<PolygonEntity> mergedEntities = intersectsPolygonService.mergeOwnPolygonsUpdate(jtsPolygon, user.getId());
+        PolygonEntity saved=null;
+        log.debug("Merged entity = {}", mergedEntities.toString() );
+        if (mergedEntities.isEmpty()) {
+            PolygonEntity polygon = new PolygonEntity();
+            polygon.setOwner(user);
+            polygon.setArea(jtsPolygon);
+            polygon.setSquare(jtsPolygon.getArea());
+            polygon.setCreatedAt(System.currentTimeMillis());
+            polygon.setLastUpdated(polygonDto.getLastUpdated());
+            saved = polygonRepository.save(polygon);
+            polygonRepository.flush();
+            polygonRepository.updateSquareInMeters(saved.getId());
+            entityManager.refresh(saved);
+            mergedEntities.add(saved);
+        } else {
+            saved = mergedEntities.stream()
+                    .filter(entity -> entity.getArea() != null)
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Merged polygon was empty"));
+        }
+        List<PolygonEntity> updatedPolygons = intersectsPolygonService.updateForeignPolygons(jtsPolygon, user.getId());
+        updatedPolygons.addAll(mergedEntities);
+        polygonWsController.notifyPolygonUpdated(updatedPolygons.stream().map(PolygonResponse::fromEntity).toList());
 
-        PolygonEntity polygon = new PolygonEntity();
-        polygon.setOwner(user);
-        polygon.setArea(jtsPolygon);
-        polygon.setSquare(polygonDto.getArea_m2());
-        polygon.setCreatedAt(System.currentTimeMillis());
-        polygon.setLastUpdated(polygonDto.getLastUpdated());
-
-        return polygonRepository.save(polygon);
+        return saved;
     }
     @Transactional
-    public PolygonEntity updatePolygonForUser(Long userId, PolygonDto polygonDto) {
+    public PolygonEntity updatePolygonForUser(Long userId, PolygonDto polygonDto) throws JsonProcessingException {
         PolygonEntity polygon = polygonRepository.findUserById(userId).get();
         if (polygon == null) {
             throw new RuntimeException("Polygon not found");
@@ -70,8 +94,9 @@ public class PolygonService {
         polygon.setArea(jtsPolygon);
         polygon.setSquare(polygonDto.getArea_m2());
         polygon.setLastUpdated(System.currentTimeMillis());
-
-        return polygonRepository.save(polygon);
+        PolygonEntity saved = polygonRepository.save(polygon);
+        polygonWsController.notifyPolygonUpdated(PolygonResponse.fromEntity(saved));
+        return saved;
     }
 
     @Transactional
@@ -81,11 +106,11 @@ public class PolygonService {
         entityManager.createNativeQuery("""
             UPDATE polygons
             SET area = ST_Union(area, :poly)
-            WHERE user_id == :userId
+            WHERE user_id = :userId
             AND ST_Intersects(area, :poly)""")
                 .setParameter("userId", userId)
                 .setParameter("poly", jtsPolygon)
-                .getResultList().isEmpty();
+                .executeUpdate();
         //Проверяем находится ли внутри
 //        boolean isInside = !entityManager.createNativeQuery("""
 //            SELECT id From polygons

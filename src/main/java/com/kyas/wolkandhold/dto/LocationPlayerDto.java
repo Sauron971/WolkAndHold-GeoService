@@ -1,5 +1,6 @@
 package com.kyas.wolkandhold.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
@@ -22,4 +23,9 @@ public class LocationPlayerDto {
     @Getter
     @Setter
     private double lon;
+
+    @Getter
+    @Setter
+    @JsonProperty("isCapture")
+    private boolean isCapture;
 }

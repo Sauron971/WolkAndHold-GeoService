@@ -5,6 +5,7 @@ import com.kyas.wolkandhold.dto.AuthResponse;
 import com.kyas.wolkandhold.dto.LoginDto;
 import com.kyas.wolkandhold.dto.SignUpDto;
 import com.kyas.wolkandhold.entity.UserEntity;
+import com.kyas.wolkandhold.security.CustomUserDetails;
 import com.kyas.wolkandhold.security.JwtUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -53,9 +55,10 @@ public class AuthController {
         Authentication auth = authenticationManager
                 .authenticate(new UsernamePasswordAuthenticationToken(loginDto.getUsername(), loginDto.getPassword()));
         SecurityContextHolder.getContext().setAuthentication(auth);
+        CustomUserDetails ud = ((CustomUserDetails) auth.getPrincipal());
 
-        String jwt = jwtUtils.generateToken((UserDetails) auth.getPrincipal());
-        return ResponseEntity.ok(new AuthResponse(jwt));
+        String jwt = jwtUtils.generateToken(ud);
+        return ResponseEntity.ok(new AuthResponse(jwt, ud.getId(), ud.getUsername()));
     }
 
     @PostMapping("/signup")
@@ -77,19 +80,19 @@ public class AuthController {
         user.setEmail(signUpDto.getEmail());
         user.setPassword(passwordEncoder.encode(signUpDto.getPassword()));
 
-        userRepository.save(user);
+        Long id = userRepository.save(user).getId();
         UserDetails ud = userDetailsService.loadUserByUsername(user.getUsername());
         String jwt = jwtUtils.generateToken(ud);
-        return ResponseEntity.ok(new AuthResponse(jwt));
+        return ResponseEntity.ok(new AuthResponse(jwt, id, ud.getUsername()));
 
     }
 
     @GetMapping("/me")
-    public ResponseEntity<?> me() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !(auth.getPrincipal() instanceof UserDetails ud)) {
+    public ResponseEntity<?> me(@AuthenticationPrincipal CustomUserDetails ud) {
+        if (ud == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        return ResponseEntity.ok(Map.of("username", ud.getUsername()));
+
+        return ResponseEntity.ok(Map.of("userId", ud.getId(), "username", ud.getUsername()));
     }
 }

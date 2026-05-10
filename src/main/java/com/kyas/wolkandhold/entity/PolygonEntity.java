@@ -27,7 +27,7 @@ public class PolygonEntity {
 
     @Getter
     @Setter
-    @Column(columnDefinition = "geometry(MULTIPOLYGON, 4326)")
+    @Column(columnDefinition = "geometry(POLYGON, 4326)")
     private Geometry area;
 
     @Getter
