@@ -48,4 +48,11 @@ docker-compose up -d
 <p align="center">
   <img width="410" height="927" alt="image" src="https://github.com/user-attachments/assets/ae8420d6-126f-4333-b33f-65e4d48532dd" />
 </p>
+<p align="center">
+  <img width="410" height="927" alt="image" src="https://github.com/Sauron971/WolkAndHold-GeoService/blob/master/static/UI_Interacting.gif" />
+</p>
+<p align="center">
+  <img width="410" height="927" alt="image" src="https://github.com/Sauron971/WolkAndHold-GeoService/blob/master/static/Process_grab.gif" />
+</p>
+
 
