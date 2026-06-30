@@ -1,6 +1,6 @@
 # Walk & Hold: Corporate Territory Capture System
 
-**Walk & Hold** is a real-time, location-based gamification platform designed to encourage physical activity within corporate teams. Users walk in the real world to capture territories on a map, compete with colleagues, and dominate city districts.
+**WolkAndHold** is a real-time, location-based gamification platform designed to encourage physical activity within corporate teams. Users walk in the real world to capture territories on a map, compete with colleagues, and dominate city districts.
 
 ## 🚀 Key Features
 
